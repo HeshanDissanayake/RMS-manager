@@ -107,6 +107,17 @@ def claim(project: Project, session_id: str, thread_id: str,
     return new
 
 
+def update(project: Project, thread_id: str, **fields) -> dict:
+    """Add fields to a thread's claim (checkout, areas, handover_due, ...)."""
+    with store.locked(project.state_dir):
+        c = get(project, thread_id)
+        if c is None:
+            raise ClaimError(f"{thread_id} is not claimed")
+        c.update(fields)
+        store.write_json(_path(project, thread_id), c)
+    return c
+
+
 def release(project: Project, thread_id: str, session_id: str | None = None,
             by: str = "session", reason: str | None = None) -> dict:
     """Free a claim. ``session_id`` given: only if that session holds it."""
@@ -146,9 +157,13 @@ def writable_areas(project: Project, rec: dict) -> list[Path]:
         areas.append((project.side_dir / rec["side"]).resolve())
     tid = rec.get("thread")
     if tid:
-        t = threads.discover(project).get(tid)
-        if t and t.folder:
-            areas.append(t.folder.resolve())
+        c = get(project, tid) or {}
+        if c.get("areas"):  # the thread's own checkout (lifecycle.open_for_claim)
+            areas += [Path(a).resolve() for a in c["areas"]]
+        else:
+            t = threads.discover(project).get(tid)
+            if t and t.folder:
+                areas.append(t.folder.resolve())
     return areas
 
 

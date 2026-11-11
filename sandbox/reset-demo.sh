@@ -13,7 +13,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RMS_HOME="$(cd "$HERE/.." && pwd)"
 RMS="$RMS_HOME/.venv/bin/rms"
 TEMPLATE="$HERE/demo-project"
-DEMO="$HERE/demo"
+DEMO="${RMS_DEMO_DIR:-$HERE/demo}"
 SOURCES=(fastlib simulator)
 
 [ -x "$RMS" ] || { echo "rms not installed: python3 -m venv .venv && .venv/bin/pip install -e ." >&2; exit 1; }

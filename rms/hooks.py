@@ -62,10 +62,15 @@ def context_text(project: Project, rec: dict, on_path: bool = True) -> str:
     if rec.get("thread"):
         t = threads.discover(project).get(rec["thread"])
         name = t.name if t else ""
+        c = claims.get(project, rec["thread"]) or {}
+        where = (f"Work in its checkout {project.rel(c['worktree'])}/ (branch "
+                 f"{project.thread_branch(rec['thread'])}); write only in "
+                 + ", ".join(project.rel(a) + "/" for a in c.get("areas", [])) + ". "
+                 if c.get("worktree") else "It may write only in its thread folder. ")
         lines.append(
-            f"This session holds thread {rec['thread']} ({name}). It may write only in its "
-            f"thread folder{' and side folder' if rec.get('side') else ''}. "
-            f"`{rms} status` shows the thread's State and How to resume.")
+            f"This session holds thread {rec['thread']} ({name}). {where}"
+            f"`{rms} status` shows the thread's State and How to resume. "
+            f"When the work ends: `{rms} handover` (it says what to write in THREAD.md).")
     elif not rec.get("side"):
         lines += [
             "This session holds NO thread yet, so RMS blocks file edits and commands that "
@@ -81,13 +86,16 @@ def context_text(project: Project, rec: dict, on_path: bool = True) -> str:
             f"- If the claim is refused because a live session holds the thread, say who holds it "
             "and ask again. A stale claim: ask the owner; only with their yes run "
             f"`{rms} claim <ID> --take-over`.",
-            f"- Then read what `{rms} claim` printed (the thread's State and How to resume) and "
-            "continue with the owner's request.",
+            f"- Then read what `{rms} claim` printed (the thread's checkout, State and How to "
+            "resume): work and write only in that checkout, and continue with the owner's request.",
+            f"- When the work ends (or the owner says so): `{rms} handover`, then follow what it says.",
         ]
     lines += ["", "Threads:"]
     lines += thread_lines(project)
     lines += ["", f"Other commands: `{rms} whoami`, `{rms} threads`, `{rms} status`, "
-              f"`{rms} release` (frees this session's thread)."]
+              f"`{rms} create \"<name>\" --from <ID>` (new thread), `{rms} handover`, "
+              f"`{rms} close --milestone|--merge-into <ID>|--no-merge -m \"<result>\"` (only when "
+              f"the owner says the thread is finished), `{rms} release`."]
     return "\n".join(lines)
 
 

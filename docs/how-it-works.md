@@ -63,6 +63,32 @@ Hooks from all three files run.
 
 The project's `CLAUDE.md` *is* read from subfolders, so it carries a line telling a session that got no RMS note to stop and ask the owner to restart in the root (see [adopting.md](adopting.md), step 3).
 
+## Thread lifecycle (git)
+
+The model is LLVM-regsw's plan (`threads/T00-main/notes/PLAN-sustainable-workflow.html`, section 5), chosen by the owner on 2026-11-11:
+
+```
+main ── T00, INDEX, every thread's records (merged at handover); source pointers move only at a milestone
+ ├─ thread/T01 ── checkout store/worktrees/T01/  (sources: store/worktrees/T01/src/<repo> on branch thread/T01)
+ └─ thread/T04 ── checkout store/worktrees/T04/
+```
+
+| command | who | what RMS does |
+|---|---|---|
+| `rms create "<name>" [--from T<NN>\|M<N>\|main]` | a session or the owner | new id; branch `thread/T<NN>` from there; checkout; folder from a template (THREAD.md, decisions, hypotheses, experiments/); commit on the branch; INDEX row on main (`Spawns:`) |
+| `rms claim T<NN>` | a session | the claim, plus the thread's checkout (created if missing, with source worktrees on `thread/T<NN>`). The session may write only in its thread folder and its sources there. |
+| `rms handover` (1st) | the holder | marks the handover due and prints what to write: State as of today, How to resume, Where things are, Open items; spawned ideas; commit the sources |
+| `rms handover -m "…"` (2nd) | the holder | checks: THREAD.md changed since step 1, State dated today, How to resume not empty, sources committed on `thread/T<NN>`, nothing changed outside the thread folder. Then: commit `T<NN> handover <date>: …` on the branch; merge into main (main's source pointers kept); INDEX status `paused`; claim released. |
+| `rms close --milestone -m "…"` | the holder | final State checked; merge into main **with** the source pointers; `M<N>` in the milestones file; tag `milestone-<N>` in the root and every source repo; INDEX row → Done |
+| `rms close --merge-into T<P> -m "…"` | the holder | merges the sources and the branch into the parent's (merge point `M-T<P>-<n>`); records into main; INDEX → Done |
+| `rms close --no-merge -m "…"` | the holder | records into main; INDEX → Done, merged into "nothing" |
+| `rms reopen T<NN>` | the owner | INDEX row back to Open, `paused` |
+| `rms archive T<NN>` / `rms restore T<NN>` | the owner | done threads only: `<data_dir>/T<NN>/` → `<archive_dir>/T<NN>-<date>.tar.gz`, sha256 in `catalog.csv`; restore checks the sha256. Nothing is deleted: the owner removes the working copy. |
+
+- Submodule pointer conflicts are expected: handover keeps main's pointer, a milestone takes the thread's, and a merge point takes the parent's merged source commit. Any other merge conflict aborts and changes nothing.
+- RMS never moves the root's own source checkouts (`update = none`). After a milestone the root shows `src/<repo>` as "new commits", which is expected.
+- `rms` run inside a thread's checkout works on the real root, because a checkout is recognised by its `.git` file.
+
 ## Rules the hooks apply
 
 - **Before a thread is held:** Edit and Write are denied. Bash runs only `rms …` and read-only commands (`ls`, `cat`, `grep`, `git log`/`status`/`diff`, …), optionally joined by `|`, `&&` or `||` and with `2>&1`. Anything else is denied with the reason.

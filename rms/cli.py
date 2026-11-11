@@ -7,7 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-from rms import __version__, claims, hooks, sessions, setup, store, threads
+from rms import __version__, claims, hooks, lifecycle, sessions, setup, store, threads
+from rms.git import GitError
 from rms.config import CONFIG_NAME, Project, find_project, init_project, load
 
 
@@ -73,6 +74,11 @@ def cmd_whoami(args) -> int:
     print(f"  cwd:     {p.rel(rec['cwd'])}")
     print(f"  side:    {rec.get('side') or '-'}")
     print(f"  thread:  {rec.get('thread') or '- (none: run `rms claim <ID>`)'}")
+    c = claims.get(p, rec["thread"]) if rec.get("thread") else None
+    if c and c.get("worktree"):
+        print(f"  checkout: {p.rel(c['worktree'])}/ (branch {p.thread_branch(rec['thread'])})")
+    if c and c.get("handover_due"):
+        print("  handover: due (write the note, then `rms handover` again)")
     areas = claims.writable_areas(p, rec)
     print(f"  may write: {', '.join(p.rel(a) + '/' for a in areas) or 'nothing'}")
     return 0
@@ -91,9 +97,21 @@ def cmd_claim(args) -> int:
                            thread=args.thread.upper(), reason=str(e))
         return _fail(f"claim refused: {e}")
     t = threads.discover(p)[c["thread"]]
-    print(f"Session {rec['short']} now holds {t.id}. It may write in {p.rel(t.folder) + '/' if t.folder else '(no folder)'}.")
+    if lifecycle.uses_git(p):
+        try:
+            info = lifecycle.open_for_claim(p, t.id)
+        except (lifecycle.LifecycleError, GitError) as e:
+            claims.release(p, t.id, session_id=rec["id"], by=rec["short"], reason="no checkout")
+            return _fail(f"claim undone: cannot open {t.id}'s checkout: {e}")
+        print(f"Session {rec['short']} now holds {t.id}.")
+        print(f"Work in {p.rel(info['worktree'])}/ (branch {p.thread_branch(t.id)}); "
+              f"write only in: {', '.join(p.rel(a) + '/' for a in info['areas'])}.")
+        print("When you stop: `rms handover` (it tells you what to write).")
+    else:
+        print(f"Session {rec['short']} now holds {t.id}. It may write in "
+              f"{p.rel(t.folder) + '/' if t.folder else '(no folder)'}.")
     print()
-    print(threads.summary(t))
+    print(threads.summary(t, lifecycle.thread_file(p, t.id) if lifecycle.uses_git(p) else None))
     return 0
 
 
@@ -134,10 +152,86 @@ def cmd_status(args) -> int:
     t = threads.discover(p).get(tid.upper())
     if t is None:
         return _fail(f"no thread {tid}")
-    print(threads.summary(t))
+    f = lifecycle.thread_file(p, t.id) if lifecycle.uses_git(p) else None
+    print(threads.summary(t, f))
     print()
     print(f"Claim: {claims.describe(p, claims.get(p, t.id))}")
     return 0
+
+
+def _lc(fn):
+    """Run a lifecycle command; turn its errors into a clean message."""
+    try:
+        return fn()
+    except (lifecycle.LifecycleError, claims.ClaimError, GitError, ValueError) as e:
+        return _fail(str(e))
+
+
+def cmd_create(args) -> int:
+    p = _project(args)
+    rec = _session(p)
+    def go():
+        r = lifecycle.create(p, args.name, origin=args.origin, status=args.status,
+                             goal=args.goal or "", by=rec["short"] if rec else "owner")
+        print(f"created {r['thread']} ({r['folder']}) from {r['from']} at {r['at']}: "
+              f"branch {r['branch']}, checkout {p.rel(r['worktree'])}/")
+        print(f"status {args.status}; claim it with `rms claim {r['thread']}`")
+        return 0
+    return _lc(go)
+
+
+def cmd_handover(args) -> int:
+    p = _project(args)
+    rec = _session(p)
+    if rec is None:
+        return _fail("handover runs inside the Claude Code session that holds the thread")
+    def go():
+        stage, text = lifecycle.handover(p, rec, args.message)
+        print(text)
+        return 0 if stage in ("due", "done") else 1
+    return _lc(go)
+
+
+def cmd_close(args) -> int:
+    p = _project(args)
+    rec = _session(p)
+    if rec is None:
+        return _fail("close runs inside the Claude Code session that holds the thread")
+    how = "milestone" if args.milestone else "merge" if args.merge_into else "none"
+    def go():
+        merged = lifecycle.close(p, rec, how, args.message, parent=args.merge_into)
+        print(f"{rec.get('thread') or ''} closed; merged into: {merged}. Thread released.")
+        return 0
+    return _lc(go)
+
+
+def cmd_reopen(args) -> int:
+    p = _project(args)
+    def go():
+        lifecycle.reopen(p, args.thread)
+        print(f"{args.thread.upper()} reopened (status paused)")
+        return 0
+    return _lc(go)
+
+
+def cmd_archive(args) -> int:
+    p = _project(args)
+    def go():
+        r = lifecycle.archive(p, args.thread)
+        print(f"archived {p.rel(p.data_dir / r['thread'])}/ -> {p.rel(p.archive_dir / r['file'])} "
+              f"({r['bytes']} bytes, sha256 {r['sha256'][:12]}...). The working copy is kept: "
+              f"the owner removes it.")
+        return 0
+    return _lc(go)
+
+
+def cmd_restore(args) -> int:
+    p = _project(args)
+    def go():
+        r = lifecycle.restore(p, args.thread, args.file)
+        print(f"restored {r['file']} (sha256 checked) -> {p.rel(p.data_dir / r['thread'])}/")
+        return 0
+    return _lc(go)
 
 
 def cmd_log(args) -> int:
@@ -250,6 +344,38 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("thread", nargs="?")
     s.add_argument("-y", "--yes", action="store_true", help="do not ask")
     s.set_defaults(fn=cmd_release)
+
+    s = sub.add_parser("create", help="new thread: branch, checkout, folder, INDEX row")
+    s.add_argument("name")
+    s.add_argument("--from", dest="origin", help="T<NN> (spawn from a thread), M<N> or main (default)")
+    s.add_argument("--status", default="parked", choices=["parked", "paused", "active"])
+    s.add_argument("--goal")
+    s.set_defaults(fn=cmd_create)
+
+    s = sub.add_parser("handover", help="end this session's work on its thread (two steps)")
+    s.add_argument("-m", "--message", help="one line: what this session did")
+    s.set_defaults(fn=cmd_handover)
+
+    s = sub.add_parser("close", help="close this session's thread and merge its result")
+    g = s.add_mutually_exclusive_group(required=True)
+    g.add_argument("--milestone", action="store_true", help="merge into main as milestone M<N>")
+    g.add_argument("--merge-into", metavar="T<NN>", help="merge into the parent thread (merge point)")
+    g.add_argument("--no-merge", action="store_true", help="ended with nothing to merge")
+    s.add_argument("-m", "--message", required=True, help="one line: the result")
+    s.set_defaults(fn=cmd_close)
+
+    s = sub.add_parser("reopen", help="reopen a done thread (status paused)")
+    s.add_argument("thread")
+    s.set_defaults(fn=cmd_reopen)
+
+    s = sub.add_parser("archive", help="pack a done thread's data into the archive (sha256)")
+    s.add_argument("thread")
+    s.set_defaults(fn=cmd_archive)
+
+    s = sub.add_parser("restore", help="unpack a thread's archived data (sha256 checked)")
+    s.add_argument("thread")
+    s.add_argument("--file", help="a specific archive file (default: the latest)")
+    s.set_defaults(fn=cmd_restore)
 
     s = sub.add_parser("status", help="a thread's State and How to resume")
     s.add_argument("thread", nargs="?")

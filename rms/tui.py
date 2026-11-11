@@ -20,7 +20,7 @@ from rms.config import Project
 STATE_STYLE = {"free": "dim", "live": "bold green", "stale": "bold yellow",
                "gone": "yellow", "ended": "dim"}
 EVENT_STYLE = {"claim": "green", "claim-refused": "red", "take-over": "yellow", "release": "cyan",
-               "denied": "red", "hook-error": "bold red", "session-start": "blue",
+               "denied": "red", "handover": "cyan", "handover-due": "yellow", "close": "magenta", "create": "green", "hook-error": "bold red", "session-start": "blue",
                "session-end": "dim"}
 
 
@@ -154,7 +154,8 @@ class RMSApp(App):
                 Text(t.id, style="bold"),
                 Text(t.name, style=status_style),
                 Text(t.status, style=status_style),
-                Text(st, style=STATE_STYLE[st]),
+                Text(st + (" · handover due" if c and c.get("handover_due") else ""),
+                     style=STATE_STYLE[st]),
                 c["short"] if c else "",
                 _time(c["since"]) if c else "",
             )

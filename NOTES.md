@@ -101,7 +101,8 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - **Tested in the sandbox only:** the template stays tracked at `sandbox/demo-project/`; a reset script builds a real git repo from it at `sandbox/demo/` (ignored by this repo), so it can be rebuilt at any time.
 - **Submodules now** (owner): source repos are submodules of the root (`update = none`: record only). Sandbox: `sandbox/reset-demo.sh` builds `sandbox/demo/origins/{fastlib,simulator}.git` and `sandbox/demo/root` (submodules in `src/`, branches `thread/T01..T03`, T00 = `main`).
 - **Handover** (owner): RMS does not write the note. It marks the handover as due and pushes Claude to do it; Claude writes the handover note in the thread's folder (`threads/T<NN>-*/`).
-- Still to decide: which commands first; the handover note's form (a separate file or THREAD.md's State / How to resume).
+- Handover note = THREAD.md (State / How to resume / Where things are / Open items), as in LLVM-regsw. Worktree per thread, as in LLVM-regsw's PLAN section 5.
+- **Built 2026-11-11:** create, claim (checkout), handover (two steps), close (milestone / merge point / none), reopen, archive, restore (`rms/lifecycle.py`, docs/how-it-works.md "Thread lifecycle"). Tested end to end (`tests/test_lifecycle.py`) and with a real Claude session (Haiku) doing claim, source commit and handover in the sandbox.
 
 ## 11. Open questions
 

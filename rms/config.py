@@ -24,6 +24,19 @@ DEFAULTS: dict = {
     "shared_writable": [],
     # Paths outside the project any session may write (globs, ~ expanded).
     "extra_writable": ["/tmp/claude-*"],
+    # --- thread lifecycle ---
+    # The root repo's main branch (T00 and the INDEX live there).
+    "main_branch": "main",
+    # Each thread's branch, in the root repo and in every source repo it uses.
+    "thread_branch": "thread/{id}",
+    # One checkout per thread: <worktrees_dir>/T<NN>/ (sources inside it too).
+    "worktrees_dir": "store/worktrees",
+    # Milestones table (M<N> entries), on main.
+    "milestones_file": "threads/T00-main/milestones.md",
+    # A thread's large data: <data_dir>/T<NN>/ (archived when done).
+    "data_dir": "store/data",
+    # Cold storage for archived thread data (.tar.gz + catalog.csv with sha256).
+    "archive_dir": "store/archive",
 }
 
 
@@ -64,6 +77,30 @@ class Project:
         return self.state_dir / "claims"
 
     @property
+    def main_branch(self) -> str:
+        return self._get("main_branch")
+
+    def thread_branch(self, thread_id: str) -> str:
+        return self._get("thread_branch").format(id=thread_id)
+
+    @property
+    def worktrees_dir(self) -> Path:
+        return self.root / self._get("worktrees_dir")
+
+    @property
+    def milestones_file(self) -> Path:
+        return self.root / self._get("milestones_file")
+
+    @property
+    def data_dir(self) -> Path:
+        return self.root / self._get("data_dir")
+
+    @property
+    def archive_dir(self) -> Path:
+        return Path(os.path.expanduser(self._get("archive_dir"))) if self._get(
+            "archive_dir").startswith(("/", "~")) else self.root / self._get("archive_dir")
+
+    @property
     def shared_writable(self) -> list[str]:
         return list(self._get("shared_writable"))
 
@@ -98,8 +135,30 @@ def find_project(start: Path | str | None = None) -> Project | None:
     p = Path(start or os.getcwd()).resolve()
     for d in (p, *p.parents):
         if (d / CONFIG_NAME).is_file():
-            return load(d)
+            return load(_main_checkout(d))
     return None
+
+
+def _main_checkout(d: Path) -> Path:
+    """A thread's checkout (a git worktree) belongs to the root it came from.
+
+    A linked worktree's .git is a file "gitdir: <root>/.git/worktrees/<name>";
+    the project is <root>, not the checkout (which has its own copy of rms.json).
+    """
+    git_file = d / ".git"
+    if not git_file.is_file():
+        return d
+    text = git_file.read_text(encoding="utf-8").strip()
+    if not text.startswith("gitdir:"):
+        return d
+    gitdir = Path(text.split(":", 1)[1].strip())
+    if not gitdir.is_absolute():
+        gitdir = (d / gitdir).resolve()
+    if gitdir.parent.name == "worktrees" and gitdir.parent.parent.name == ".git":
+        root = gitdir.parent.parent.parent
+        if (root / CONFIG_NAME).is_file():
+            return root
+    return d
 
 
 def init_project(root: Path, name: str | None = None) -> Path:

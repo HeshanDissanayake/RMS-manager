@@ -87,9 +87,14 @@ def section(thread: Thread, title_prefix: str) -> str | None:
     f = thread.thread_file
     if not f or not f.is_file():
         return None
+    return section_text(f.read_text(encoding="utf-8"), title_prefix)
+
+
+def section_text(text: str, title_prefix: str) -> str | None:
+    """The first '## <title_prefix>...' section (heading included) of a Markdown text."""
     out: list[str] = []
     inside = False
-    for line in f.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         if line.startswith("## "):
             if inside:
                 break
@@ -102,11 +107,13 @@ def section(thread: Thread, title_prefix: str) -> str | None:
     return "\n".join(out).strip() or None
 
 
-def summary(thread: Thread) -> str:
+def summary(thread: Thread, file: Path | None = None) -> str:
     """Header line + State + How to resume: what a session needs to start."""
     parts = [f"{thread.id}: {thread.name}  [{thread.status}]"]
+    f = file or thread.thread_file
+    text = f.read_text(encoding="utf-8") if f and f.is_file() else ""
     for title in ("State", "How to resume"):
-        body = section(thread, title)
+        body = section_text(text, title)
         if body:
             parts.append(body)
     if len(parts) == 1:

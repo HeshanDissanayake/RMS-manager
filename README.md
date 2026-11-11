@@ -35,8 +35,9 @@ owner ─────────────────▶ rms tui            
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e .     # once (Textual is the one dependency)
-cd sandbox/demo-project
-../../.venv/bin/rms tui                                   # terminal 1: watch
+sandbox/reset-demo.sh                                     # (re)build the sandbox root
+cd sandbox/demo/root
+../../../.venv/bin/rms tui                                   # terminal 1: watch
 claude                                                    # terminal 2: a session (hooks in .claude/settings.json)
 claude                                                    # terminal 3: a second session; try the same thread
 ```
@@ -55,6 +56,10 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 | `rms whoami` | this session: thread, side folder, what it may write |
 | `rms claim T<NN> [--take-over] [--allow-done]` | claim a thread for this session |
 | `rms release [T<NN>]` | free this session's thread; from the owner's terminal any thread |
+| `rms create "<name>" [--from T<NN>\|M<N>]` | new thread: branch, checkout, folder, INDEX row |
+| `rms handover [-m "…"]` | step 1: what to write in THREAD.md; step 2: check, commit, merge into main, release |
+| `rms close --milestone\|--merge-into T<P>\|--no-merge -m "…"` | close the thread: milestone M<N> (tags), merge point, or nothing |
+| `rms reopen T<NN>` · `rms archive T<NN>` · `rms restore T<NN>` | reopen a done thread; pack/unpack its data (sha256) |
 | `rms status [T<NN>]` | a thread's State and How to resume |
 | `rms log [-n N]` | recent events |
 | `rms tui` | the terminal UI |
@@ -73,7 +78,8 @@ RMS-manager/
 ├── README.md, NOTES.md, CLAUDE.md
 ├── docs/                   how-it-works.md, adopting.md
 ├── pyproject.toml          package `rms`, command `rms`
-├── rms/                    config, store, procs, threads, sessions, claims, hooks, setup, cli, tui
+├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, hooks, setup, cli, tui
 ├── tests/                  unittest (sessions, claims, hooks, TUI)
-└── sandbox/demo-project/   demo project: rms.json, threads/, side/, .claude/settings.json
+├── sandbox/demo-project/   template of the demo project (rms.json, threads/, side/)
+└── sandbox/reset-demo.sh   builds sandbox/demo/root: a git root with source submodules (not in git)
 ```
