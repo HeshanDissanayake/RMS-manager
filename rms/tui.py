@@ -139,7 +139,7 @@ class RMSApp(App):
             "ID", "Thread", "Status", "Claim", "Held by", "Since")
         self.query_one("#sessions", DataTable).add_columns(
             "Session", "State", "Thread", "Where", "Started", "Last seen")
-        self.query_one("#warnings", DataTable).add_columns("ID", "Thread", "Warning", "Since")
+        self.query_one("#warnings", DataTable).add_columns("ID", "Thread", "Since", "Warning")
         self.warning_ids: list[str] = []
         self.refresh_all()
         self.set_interval(1.0, self.refresh_all)
@@ -196,8 +196,8 @@ class RMSApp(App):
         wt.clear()
         self.warning_ids = []
         for w in warns.open_rows(p):
-            wt.add_row(Text(w["id"], style="bold yellow"), w.get("thread") or "", w["text"],
-                       _time(w.get("first_seen")))
+            wt.add_row(Text(w["id"], style="bold yellow"), w.get("thread") or "",
+                       _time(w.get("first_seen")), w["text"])
             self.warning_ids.append(w["id"])
         if self.warning_ids:
             wt.move_cursor(row=min(row, len(self.warning_ids) - 1), animate=False)
