@@ -261,21 +261,17 @@ class TestSetup(Fixture):
         hook_lines = [(lvl, m) for lvl, m in res if m.startswith("hook ")]
         self.assertEqual(len(hook_lines), 3, res)
         self.assertEqual({lvl for lvl, _ in hook_lines}, {"ok"})
-        self.assertTrue(any("only at project level" in m for _, m in res))
+        self.assertTrue(any(lvl == "note" and "start `claude` in" in m for lvl, m in res))
         # a wrong program path is caught
         setup.install_hooks(fresh, "/nowhere/rms")
         fails = [m for lvl, m in setup.doctor(fresh) if lvl == "fail"]
         self.assertEqual(len(fails), 3, fails)
 
-    def test_user_scope(self):
+    def test_no_user_scope(self):
         from rms import setup
-        path = setup.install_hooks(None, str(HERE / ".venv/bin/rms"), scope="user")
-        self.assertEqual(path, self.dir / "home" / ".claude" / "settings.json")
-        res = setup.doctor(self.root)
-        self.assertFalse(any("only at project level" in m for _, m in res))
-        self.assertFalse(any(lvl == "fail" for lvl, _ in res), res)
-        with self.assertRaisesRegex(ValueError, "absolute"):
-            setup.install_hooks(None, "$CLAUDE_PROJECT_DIR/rms", scope="user")
+        with self.assertRaisesRegex(ValueError, "unknown scope"):
+            setup.install_hooks(self.root, "/x/rms", scope="user")
+        self.assertFalse((self.dir / "home" / ".claude").exists())
 
     def test_local_settings(self):
         from rms import setup

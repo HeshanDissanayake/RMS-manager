@@ -25,30 +25,37 @@ The folder names are defaults; `rms.json` can point elsewhere (`threads_dir`, `i
    ```
    Below, `rms` means `<RMS-manager>/.venv/bin/rms`.
 
-2. **Adopt the project:** create `rms.json`, merge the hooks, and check:
+2. **Adopt the project:** create `rms.json`, merge the hooks into the project's folder, and check:
    ```bash
-   rms adopt <project> --user          # hooks in ~/.claude/settings.json (recommended)
-   # or: rms adopt <project>           # hooks in <project>/.claude/settings.json (in git)
-   # or: rms adopt <project> --local   # hooks in <project>/.claude/settings.local.json
+   rms adopt <project>             # hooks in <project>/.claude/settings.json (in git, shared)
+   # or: rms adopt <project> --local   # hooks in <project>/.claude/settings.local.json (personal)
    ```
-   The hooks are **merged**: other settings and hooks in the file stay, and running it again replaces only RMS's own entries. To see the block without writing it: `rms install-hooks --print`.
-   With `--user`, this only needs doing once per machine. For a second project, `rms init <project>` (just `rms.json`) is enough.
+   Hooks go only in the project's own folder, never in `~/.claude/settings.json` (owner's decision 2026-11-11). They are **merged**: other settings and hooks in the file stay, and running it again replaces only RMS's own entries. To see the block without writing it: `rms install-hooks --print`.
+   With `settings.json` in git, the hook command holds the path to `rms` on this machine. On another machine, run `rms install-hooks <project>` again.
 
-3. **Ignore the state folder in git:** add `store/` (or `store/rms/`) to the project's `.gitignore`.
+3. **Tell sessions to start in the root.** Claude Code reads the hooks only when `claude` starts in `<project>/`. `CLAUDE.md` is read from subfolders too, so add to `<project>/CLAUDE.md`:
+   ```markdown
+   ## RMS
+   This project is managed by RMS. Every session must start in the project root. If you got no
+   "RMS" note at the start of this session, you were started elsewhere: do nothing, and ask the
+   owner to restart `claude` in the project root.
+   ```
 
-4. **Check:**
+4. **Ignore the state folder in git:** add `store/` (or `store/rms/`) to the project's `.gitignore`.
+
+5. **Check:**
    ```bash
    rms doctor <project>
    ```
-   It checks `rms.json`, the threads folder and index, that `store/rms/` is writable and git-ignored, and that all three hooks are present and point to an existing `rms`. It warns if the hooks are only at project level. It exits 1 if anything would stop RMS from working.
+   It checks `rms.json`, the threads folder and index, that `store/rms/` is writable and git-ignored, and that all three hooks are present and point to an existing `rms`. It exits 1 if anything would stop RMS from working.
 
-5. **Try it:** start `claude` in the project and type `hi`. You should see the RMS line with the thread list, and Claude should ask which thread. `rms tui` (run from the project) shows the session appear.
+6. **Try it:** start `claude` in the project root and type `hi`. You should see the RMS line with the thread list, and Claude should ask which thread. `rms tui` (run from the project) shows the session appear.
 
 ## Checklist when something does not work
 
 | symptom | cause / fix |
 |---|---|
-| no RMS line at session start, nothing in `rms log` | hooks not read: `rms doctor`; project-level hooks + `claude` started in a subfolder → `--user` |
+| no RMS line at session start, nothing in `rms log` | `claude` was started in a subfolder: restart it in the project root; otherwise `rms doctor` |
 | hook errors in Claude Code | the `rms` path in the hook command is wrong (RMS moved) → `rms install-hooks … ` again |
 | `rms: command not found` inside Claude | `CLAUDE_ENV_FILE` not set by this Claude Code version → Claude uses the absolute path given in its context |
 | claim refused, "held by S-XXXX (live)" | another session works on that thread (by design); `rms sessions` shows it |
@@ -57,4 +64,4 @@ The folder names are defaults; `rms.json` can point elsewhere (`threads_dir`, `i
 
 ## Removing RMS from a project
 
-Delete the RMS entries from the settings file (the hook entries whose command contains `rms hook`), then delete `rms.json` and `store/rms/`. With `--user` hooks, other RMS projects still use them; remove them from `~/.claude/settings.json` only when no project needs RMS.
+Delete the RMS entries from `<project>/.claude/settings*.json` (the hook entries whose command contains `rms hook`), the RMS section of `CLAUDE.md`, `rms.json` and `store/rms/`.

@@ -21,18 +21,18 @@ EVENTS = {  # Claude Code event -> rms hook name
 }
 
 
-SCOPES = ("project", "local", "user")
+# Hooks live only in the project's own folder (owner's decision 2026-11-11):
+# never in ~/.claude/settings.json. Claude Code reads them only when `claude`
+# is started in the project root (docs/how-it-works.md).
+SCOPES = ("project", "local")
 
 
-def settings_path(root: Path | None, scope: str = "project") -> Path:
+def settings_path(root: Path, scope: str = "project") -> Path:
     """project: <root>/.claude/settings.json (in git, shared)
     local:   <root>/.claude/settings.local.json (personal, not in git)
-    user:    ~/.claude/settings.json (every Claude Code session on this machine)
     """
-    if scope == "user":
-        return Path(os.path.expanduser("~/.claude/settings.json"))
-    if root is None:
-        raise ValueError(f"scope {scope!r} needs a project folder")
+    if scope not in SCOPES:
+        raise ValueError(f"unknown scope {scope!r} (project or local)")
     return root / ".claude" / ("settings.local.json" if scope == "local" else "settings.json")
 
 
@@ -55,9 +55,7 @@ def merge_hooks(settings: dict, rms_cmd: str) -> dict:
     return out
 
 
-def install_hooks(root: Path | None, rms_cmd: str, scope: str = "project") -> Path:
-    if scope == "user" and "$CLAUDE_PROJECT_DIR" in rms_cmd:
-        raise ValueError("user-level hooks need an absolute rms path, not $CLAUDE_PROJECT_DIR")
+def install_hooks(root: Path, rms_cmd: str, scope: str = "project") -> Path:
     path = settings_path(root, scope)
     cur = store.read_json(path, None) if path.exists() else {}
     if cur is None:
@@ -94,7 +92,7 @@ def _executable(cmd: str, root: Path) -> Path | None:
 
 
 def doctor(root: Path) -> list[tuple[str, str]]:
-    """[(level, message)], level in ok / warn / fail."""
+    """[(level, message)], level in ok / note / warn / fail."""
     root = Path(root).resolve()
     out: list[tuple[str, str]] = []
     ok = lambda m: out.append(("ok", m))  # noqa: E731
@@ -142,12 +140,6 @@ def doctor(root: Path) -> list[tuple[str, str]]:
         ok(f"{p.rel(p.state_dir)}/ is ignored by git")
 
     found = _hook_commands(root)
-    user_file = settings_path(None, "user")
-    if any(cmds for cmds in found.values()) and not any(
-            path == user_file for cmds in found.values() for path, _ in cmds):
-        warn("hooks are only at project level: Claude Code reads them only when `claude` is "
-             "started in the project root, so sessions started in a subfolder (side/<name>/, "
-             "a thread folder) are not seen by RMS. Fix: rms install-hooks --user")
     for event, cmds in found.items():
         if not cmds:
             fail(f"hook {event} missing (rms install-hooks {root})")
@@ -159,6 +151,8 @@ def doctor(root: Path) -> list[tuple[str, str]]:
             if exe is None or not exe.is_file() or not os.access(exe, os.X_OK):
                 fail(f"hook {event} in {path}: program {exe} not found or not executable")
             else:
-                where = "~/.claude/settings.json" if path == user_file else p.rel(path)
-                ok(f"hook {event} in {where} -> {exe.resolve()}")
+                ok(f"hook {event} in {p.rel(path)} -> {exe.resolve()}")
+    if all(found.values()):
+        out.append(("note", f"start `claude` in {root}: sessions started in a subfolder "
+                            "do not read these hooks and are not seen by RMS"))
     return out

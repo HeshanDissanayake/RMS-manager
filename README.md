@@ -47,10 +47,10 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 
 | command | what |
 |---|---|
-| `rms adopt [dir] [--user\|--local]` | put RMS on a project: `rms.json` + hooks (merged) + `doctor` |
+| `rms adopt [dir] [--local]` | put RMS on a project: `rms.json` + hooks (merged) + `doctor` |
 | `rms doctor [dir]` | check a project's setup: config, folders, git-ignore, hooks and the `rms` path |
 | `rms init [dir]` | create `rms.json` only |
-| `rms install-hooks [dir] [--user\|--local] [--print]` | merge RMS's hooks into a settings file (others kept), or print them |
+| `rms install-hooks [dir] [--local] [--print]` | merge RMS's hooks into a settings file (others kept), or print them |
 | `rms threads` / `rms sessions [--all]` | threads with their claims / sessions |
 | `rms whoami` | this session: thread, side folder, what it may write |
 | `rms claim T<NN> [--take-over] [--allow-done]` | claim a thread for this session |
@@ -62,7 +62,7 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 
 State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `events.jsonl`). Tests: `.venv/bin/python -m unittest discover -s tests`.
 
-**Where the hooks go:** Claude Code reads a project's `.claude/settings.json` only when `claude` is started in that exact folder (not in a subfolder), so the recommended place is `~/.claude/settings.json` (`--user`): see [`docs/how-it-works.md`](docs/how-it-works.md).
+**Where the hooks go:** only in the project's own `.claude/settings.json` (or `settings.local.json`), never at user level (owner, 2026-11-11). Claude Code reads them only when `claude` starts in that exact folder, so **sessions start in the project root**: see [`docs/how-it-works.md`](docs/how-it-works.md).
 
 **Known limit:** once a session holds a thread, its Bash commands are not checked (only Edit/Write are confined to the thread folder). Before it holds one, only read-only commands and `rms` run.
 

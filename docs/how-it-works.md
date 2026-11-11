@@ -3,7 +3,7 @@
 RMS has no server in this step. It is one program (`rms`) and a folder of small JSON files in the project. Claude Code calls it through **hooks**, the owner calls it from a terminal or the TUI, and sessions call it through Bash.
 
 ```
-                      ~/.claude/settings.json  (or the project's .claude/settings*.json)
+                      <project>/.claude/settings.json  (or settings.local.json)
                       says: on these events, run `rms hook <event>`
                                         │
  Claude Code session ── SessionStart ──▶ rms hook session-start ─┐
@@ -22,7 +22,7 @@ RMS has no server in this step. It is one program (`rms`) and a folder of small 
 |---|---|---|
 | project config | `<project>/rms.json` | marks the project root; folders for threads, index, side sessions, state; extra writable paths |
 | state | `<project>/store/rms/` (not in git) | `sessions/` one file per session, `claims/` one file per held thread, `events.jsonl` the log |
-| hooks | a Claude Code settings file | make Claude Code call `rms hook <event>` |
+| hooks | `<project>/.claude/settings.json` (or `settings.local.json`) | make Claude Code call `rms hook <event>` |
 | code | this repo, `rms/` | `hooks.py` (what each hook does), `claims.py`, `sessions.py`, `threads.py`, `setup.py` (install + doctor), `cli.py`, `tui.py` |
 
 The state is plain files under one lock (`store/rms/.lock`, `flock`), written atomically. It can be read and fixed by hand. Nothing depends on a running server.
@@ -57,26 +57,17 @@ Hooks from all three files run.
 
 `CLAUDE.md` is different. Claude Code reads it from every parent folder, and that difference is easy to miss.
 
-**Consequence:** with project-level hooks only, a session started in `side/<name>/` or inside a thread folder is invisible to RMS and is not protected. Therefore:
+**Decision (owner, 2026-11-11): hooks live only in the project's own folder,** in `<project>/.claude/settings.json` (in git) or `settings.local.json` (personal). They never go in `~/.claude/settings.json`. RMS has no option for that.
 
-## Recommended: hooks at user level
+**Consequence: start `claude` in the project root.** A session started in a subfolder (`side/<name>/`, a thread folder) does not read the hooks. RMS does not see it and does not guard it. `rms doctor` prints this as a note.
 
-```bash
-rms install-hooks --user        # merges into ~/.claude/settings.json, keeps everything else
-```
-
-- Every Claude Code session on the machine calls `rms hook …`, in any folder.
-- `rms hook` searches up from the session's folder for `rms.json`. Outside an RMS project it does nothing and exits at once (0.04 s measured), so other projects are not affected.
-- One install covers every RMS project on the machine.
-- The hook command holds an absolute path to the `rms` program. Moving or deleting the RMS install breaks it, and `rms doctor` reports that.
-
-Project-level hooks (`rms install-hooks <dir>`, or `--local`) are still useful for a project that is always started from its root, or for the demo in `sandbox/`. `rms doctor` warns when only project-level hooks exist.
+The project's `CLAUDE.md` *is* read from subfolders, so it carries a line telling a session that got no RMS note to stop and ask the owner to restart in the root (see [adopting.md](adopting.md), step 3).
 
 ## Rules the hooks apply
 
 - **Before a thread is held:** Edit and Write are denied. Bash runs only `rms …` and read-only commands (`ls`, `cat`, `grep`, `git log`/`status`/`diff`, …), optionally joined by `|`, `&&` or `||` and with `2>&1`. Anything else is denied with the reason.
 - **With a thread held:** Edit and Write are allowed only inside the thread's folder (plus `shared_writable` and `extra_writable` from `rms.json`). Bash is not checked (a known limit).
-- **Side session** (started in `<side_dir>/<name>/`): writes only inside that folder, and it needs no claim.
+- **Side session** (its folder is in `<side_dir>/<name>/`): writes only inside that folder, and it needs no claim. Because hooks are read only in the root, a side session started *in* its side folder is not seen by RMS. This case is still open (NOTES.md).
 - **One live session per thread:** a claim is refused while the holder's process runs. "Live" means the PID is alive and has the same start time, so a reused PID doesn't count. If the holder is gone, the claim is *stale*: `--take-over` only after the owner says yes.
 - **SessionEnd** releases the session's claim.
 - **A hook never breaks Claude Code:** on an internal error it logs `hook-error` and lets the call through.

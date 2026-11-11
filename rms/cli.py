@@ -153,12 +153,12 @@ def cmd_hook(args) -> int:
 
 
 def _scope(args) -> str:
-    return "user" if args.user else "local" if args.local else "project"
+    return "local" if args.local else "project"
 
 
 def cmd_install_hooks(args) -> int:
     root = Path(args.dir).resolve()
-    if not args.user and not (root / CONFIG_NAME).is_file():
+    if not (root / CONFIG_NAME).is_file():
         return _fail(f"{root} has no {CONFIG_NAME} (run `rms adopt {args.dir}`)")
     rms_cmd = args.command or hooks.rms_command()
     if args.print:
@@ -173,7 +173,7 @@ def cmd_install_hooks(args) -> int:
 
 
 def _print_doctor(root: Path) -> int:
-    marks = {"ok": "  ok  ", "warn": "  warn", "fail": "  FAIL"}
+    marks = {"ok": "  ok  ", "note": "  note", "warn": "  warn", "fail": "  FAIL"}
     results = setup.doctor(root)
     for level, msg in results:
         print(f"{marks[level]}  {msg}")
@@ -212,12 +212,9 @@ def cmd_tui(args) -> int:
 # --- parser -------------------------------------------------------------------
 
 def _scope_args(s: argparse.ArgumentParser) -> None:
-    g = s.add_mutually_exclusive_group()
-    g.add_argument("--local", action="store_true",
-                   help="hooks in <dir>/.claude/settings.local.json (personal, not in git)")
-    g.add_argument("--user", action="store_true",
-                   help="hooks in ~/.claude/settings.json: every session on this machine, "
-                        "any folder (recommended; see docs/how-it-works.md)")
+    s.add_argument("--local", action="store_true",
+                   help="hooks in <dir>/.claude/settings.local.json (personal, not in git) "
+                        "instead of <dir>/.claude/settings.json")
 
 
 def build_parser() -> argparse.ArgumentParser:
