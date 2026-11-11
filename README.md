@@ -58,6 +58,7 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 | `rms release [T<NN>]` | free this session's thread; from the owner's terminal any thread |
 | `rms create "<name>" [--from T<NN>\|M<N>]` | new thread: branch, checkout, folder, INDEX row |
 | `rms handover [-m "…"]` | step 1: what to write in THREAD.md; step 2: check, commit, merge into main, release |
+| `rms approve-close T<NN>` | owner only: the yes that `rms close` needs (once) |
 | `rms close --milestone\|--merge-into T<P>\|--no-merge -m "…"` | close the thread: milestone M<N> (tags), merge point, or nothing |
 | `rms reopen T<NN>` · `rms archive T<NN>` · `rms restore T<NN>` | reopen a done thread; pack/unpack its data (sha256) |
 | `rms status [T<NN>]` | a thread's State and How to resume |

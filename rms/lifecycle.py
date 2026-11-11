@@ -452,9 +452,33 @@ def next_milestone(project: Project) -> int:
     return (max(nums) + 1) if nums else 1
 
 
+def _approval_path(project: Project, tid: str) -> Path:
+    return project.state_dir / "approvals" / f"close-{tid}.json"
+
+
+def approve_close(project: Project, tid: str, by: str = "owner") -> dict:
+    """The owner's yes to closing a thread (run by the owner, never by a session)."""
+    tid = tid.upper()
+    if tid not in threads.discover(project):
+        raise LifecycleError(f"no thread {tid}")
+    rec = {"thread": tid, "by": by, "at": store.now()}
+    store.write_json(_approval_path(project, tid), rec)
+    store.append_event(project.state_dir, "close-approved", thread=tid, by=by)
+    return rec
+
+
+def close_approval(project: Project, tid: str) -> dict | None:
+    return store.read_json(_approval_path(project, tid))
+
+
 def close(project: Project, rec: dict, how: str, summary: str, parent: str | None = None) -> str:
     """how: milestone | merge (into parent) | none. Returns what it was merged into."""
     tid, c = _holder_check(project, rec)
+    if not close_approval(project, tid):
+        store.append_event(project.state_dir, "close-refused", session=rec["short"], thread=tid)
+        raise LifecycleError(f"closing {tid} needs the owner's yes: ask the owner to run "
+                             f"`rms approve-close {tid}` in their own terminal (or press c on "
+                             f"{tid} in `rms tui`), then run this again")
     ensure_worktree(project, tid)
     problems = check_note(project, tid, before=c.get("claim_note_hash"))
     if problems:
@@ -514,6 +538,7 @@ def close(project: Project, rec: dict, how: str, summary: str, parent: str | Non
         merge_into_main(project, tid, f"Merge {br}: {tid} closed (nothing to merge)",
                         {"Thread": tid}, keep_pointers=True, index_edit=_index_done(tid, "nothing"))
     claims.release(project, tid, session_id=rec["id"], by=rec["short"], reason="close")
+    _approval_path(project, tid).unlink(missing_ok=True)  # used once
     store.append_event(project.state_dir, "close", session=rec["short"], thread=tid, merged=merged)
     return merged
 

@@ -149,6 +149,13 @@ class Lifecycle(unittest.TestCase):
         git(w4 / "src/fastlib", "add", "bench.py")
         git(w4 / "src/fastlib", "commit", "-qm", "bench")
         rc, out = self.rms("bbbb-2", "close", "--merge-into", "T01", "-m", "bench works")
+        self.assertEqual(rc, 1)
+        self.assertIn("owner's yes", out)  # no approval yet
+        rc, out = self.rms("bbbb-2", "approve-close", "T04")
+        self.assertEqual(rc, 1)  # a session cannot approve
+        rc, out = self.rms(None, "approve-close", "T04")
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rms("bbbb-2", "close", "--merge-into", "T01", "-m", "bench works")
         self.assertEqual(rc, 1)  # note not written yet
         self.assertIn("final State", out)
         self.note("T04", "Bench harness works.")
@@ -166,6 +173,8 @@ class Lifecycle(unittest.TestCase):
         rc, out = self.rms("cccc-3", "claim", "T01")
         self.assertEqual(rc, 0, out)
         self.note("T01", "Final: fastlib 2 with bench.")
+        self.assertIsNone(lifecycle.close_approval(p, "T04"))  # used once
+        self.rms(None, "approve-close", "T01")
         rc, out = self.rms("cccc-3", "close", "--milestone", "-m", "fastlib 2")
         self.assertEqual(rc, 0, out)
         self.assertIn("M1", out)

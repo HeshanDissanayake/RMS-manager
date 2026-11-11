@@ -94,8 +94,9 @@ def context_text(project: Project, rec: dict, on_path: bool = True) -> str:
     lines += thread_lines(project)
     lines += ["", f"Other commands: `{rms} whoami`, `{rms} threads`, `{rms} status`, "
               f"`{rms} create \"<name>\" --from <ID>` (new thread), `{rms} handover`, "
-              f"`{rms} close --milestone|--merge-into <ID>|--no-merge -m \"<result>\"` (only when "
-              f"the owner says the thread is finished), `{rms} release`."]
+              f"`{rms} close --milestone|--merge-into <ID>|--no-merge -m \"<result>\"` (needs the "
+              f"owner's yes: they run `rms approve-close <ID>`; never run that yourself), "
+              f"`{rms} release`."]
     return "\n".join(lines)
 
 
@@ -232,6 +233,12 @@ def pre_tool_use(project: Project, data: dict) -> dict | None:
         store.append_event(project.state_dir, "denied", session=rec["short"],
                            tool=tool, path=project.rel(path))
         return _deny(reason)
+
+    if tool == "Bash" and re.search(r"\bapprove-close\b", ti.get("command", "")):
+        store.append_event(project.state_dir, "denied", session=rec["short"], tool=tool,
+                           command=ti.get("command", "")[:200])
+        return _deny("RMS: approve-close is the owner's yes; only the owner runs it, in their "
+                     "own terminal. Ask the owner.")
 
     if tool == "Bash" and not areas:
         cmd = ti.get("command", "")

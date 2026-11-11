@@ -205,6 +205,17 @@ def cmd_close(args) -> int:
     return _lc(go)
 
 
+def cmd_approve_close(args) -> int:
+    p = _project(args)
+    if sessions.current_id():
+        return _fail("approve-close is the owner's: run it in your own terminal, not in Claude")
+    def go():
+        lifecycle.approve_close(p, args.thread)
+        print(f"approved: the session holding {args.thread.upper()} may now close it (once)")
+        return 0
+    return _lc(go)
+
+
 def cmd_reopen(args) -> int:
     p = _project(args)
     def go():
@@ -363,6 +374,10 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--no-merge", action="store_true", help="ended with nothing to merge")
     s.add_argument("-m", "--message", required=True, help="one line: the result")
     s.set_defaults(fn=cmd_close)
+
+    s = sub.add_parser("approve-close", help="owner only: allow the session to close a thread")
+    s.add_argument("thread")
+    s.set_defaults(fn=cmd_approve_close)
 
     s = sub.add_parser("reopen", help="reopen a done thread (status paused)")
     s.add_argument("thread")

@@ -20,7 +20,7 @@ from rms.config import Project
 STATE_STYLE = {"free": "dim", "live": "bold green", "stale": "bold yellow",
                "gone": "yellow", "ended": "dim"}
 EVENT_STYLE = {"claim": "green", "claim-refused": "red", "take-over": "yellow", "release": "cyan",
-               "denied": "red", "handover": "cyan", "handover-due": "yellow", "close": "magenta", "create": "green", "hook-error": "bold red", "session-start": "blue",
+               "denied": "red", "handover": "cyan", "handover-due": "yellow", "close": "magenta", "close-approved": "magenta", "close-refused": "red", "create": "green", "hook-error": "bold red", "session-start": "blue",
                "session-end": "dim"}
 
 
@@ -31,15 +31,16 @@ def _time(iso: str | None) -> str:
 class ConfirmScreen(ModalScreen[bool]):
     BINDINGS = [Binding("y", "yes", "Yes"), Binding("n,escape", "no", "No")]
 
-    def __init__(self, question: str) -> None:
+    def __init__(self, question: str, yes_label: str = "Release (y)") -> None:
         super().__init__()
         self.question = question
+        self.yes_label = yes_label
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
             yield Label(self.question, id="question")
             with Horizontal(id="buttons"):
-                yield Button("Release (y)", variant="warning", id="yes")
+                yield Button(self.yes_label, variant="warning", id="yes")
                 yield Button("Cancel (n)", id="no")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -96,6 +97,7 @@ class RMSApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("x", "release", "Release claim"),
+        Binding("c", "approve_close", "Approve close"),
         Binding("enter", "details", "Details", show=True),
         Binding("e", "toggle_ended", "Show ended"),
         Binding("r", "refresh", "Refresh"),
@@ -243,6 +245,22 @@ class RMSApp(App):
             return
         body = threads.summary(t) + "\n\nClaim: " + claims.describe(p, claims.get(p, t.id))
         self.push_screen(TextScreen(f"{t.id}  {t.name}", body))
+
+    def action_approve_close(self) -> None:
+        from rms import lifecycle
+        tid = self._selected_thread()
+        if not tid:
+            return
+        q = (f"Allow the session holding {tid} to close it (once)?\n"
+             f"It then merges the result (milestone, merge point or nothing).")
+
+        def done(yes: bool | None) -> None:
+            if yes:
+                lifecycle.approve_close(self.project, tid, by="owner (tui)")
+                self.notify(f"close of {tid} approved")
+                self.refresh_all()
+
+        self.push_screen(ConfirmScreen(q, "Approve (y)"), done)
 
     def action_release(self) -> None:
         p = self.project

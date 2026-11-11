@@ -169,11 +169,14 @@ class TestHooks(Fixture):
         for bad in ["rm -rf threads", "echo hi > f.txt", "git commit -m x",
                     "find . -delete", "rms claim T01; rm x", "python3 x.py",
                     "sed -i s/a/b/ f", "git branch -D x", "(rm x) || ls",
-                    "rms claim T01 > out.txt", "ls $(rm x)", "rms claim T01 & rm x"]:
+                    "rms claim T01 > out.txt", "ls $(rm x)", "rms claim T01 & rm x",
+                    "rms approve-close T01", "env -u X rms approve-close T01"]:
             out = self._pre("cafe-1", "Bash", command=bad)
             self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny", bad)
         claims.claim(self.p, "cafe-1", "T01")
         self.assertIsNone(self._pre("cafe-1", "Bash", command="python3 x.py"))
+        out = self._pre("cafe-1", "Bash", command="cd x && rms approve-close T01")
+        self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_side_session(self):
         side = self.root / "side" / "scratch-ideas"
