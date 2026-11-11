@@ -238,6 +238,9 @@ def pre_tool_use(project: Project, data: dict) -> dict | None:
                            tool=tool, path=project.rel(path))
         return _deny(reason)
 
+    if tool == "Bash" and re.search(r"\bwarnings\s+(dismiss|resolve)\b", ti.get("command", "")):
+        return _deny("RMS: settling warnings is the owner's; tell the owner about them instead.")
+
     if tool == "Bash" and re.search(r"\bapprove-close\b", ti.get("command", "")):
         store.append_event(project.state_dir, "denied", session=rec["short"], tool=tool,
                            command=ti.get("command", "")[:200])

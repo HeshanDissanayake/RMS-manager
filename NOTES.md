@@ -108,7 +108,7 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 
 - RMS records and reconciles; it never builds or runs recipes. Sessions record (`rms build add/use`); RMS fills in what it can know (source commit from the thread's checkout).
 - One file per thread: `threads/T<NN>-*/store.json` (builds made, builds used, ignored folders). Data needs no record (`store/data/T<NN>/`).
-- Sessions that did not tell RMS (e.g. a cloud session): `rms scan` finds unrecorded build folders and guesses thread (name, build files, logged command, claim at write time), source and recipe; the thread's handover is blocked until they are recorded or ignored.
+- Sessions that did not tell RMS (e.g. a cloud session): `rms scan` finds unrecorded build folders and guesses thread (name, build files, logged command, claim at write time), source and recipe; they become **warnings** for the owner (never blocking; owner 2026-11-11): `rms warnings`, TUI pane; RMS resolves one itself when its cause is gone, the owner dismisses or resolves the rest.
 - `rms gc` lists candidates (LLVM-regsw's gc rule: not needed by an open thread or a milestone, unchanged for 4 weeks; cheap -> owner removes, expensive/data -> archive first). `rms archive/restore` for data (thread or experiment) and builds.
 - **Built 2026-11-11, sandbox only** (`tests/test_inventory.py`). Migrating LLVM-regsw's `shared/builds.md` and `catalog.csv`: later.
 

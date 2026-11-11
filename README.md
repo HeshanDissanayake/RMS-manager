@@ -63,7 +63,8 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 | `rms reopen T<NN>` · `rms archive T<NN>` · `rms restore T<NN>` | reopen a done thread; pack/unpack its data (sha256) |
 | `rms build add\|use\|unuse\|ignore …` | record what the thread built / uses (RMS fills in source commits) |
 | `rms store [T<NN>]` · `rms builds` · `rms env [T<NN>]` | a thread's builds, uses and data; all builds; shell exports |
-| `rms scan` · `rms gc` | find unrecorded builds and data (with guesses); list clean-up candidates (removes nothing) |
+| `rms scan` · `rms gc` | find unrecorded builds and data (with guesses; they become warnings); list clean-up candidates (removes nothing) |
+| `rms warnings [dismiss\|resolve <id>]` | mismatches for the owner to settle (owner only); also a TUI pane |
 | `rms status [T<NN>]` | a thread's State and How to resume |
 | `rms log [-n N]` | recent events |
 | `rms tui` | the terminal UI |
@@ -82,7 +83,7 @@ RMS-manager/
 ├── README.md, NOTES.md, CLAUDE.md
 ├── docs/                   how-it-works.md, adopting.md
 ├── pyproject.toml          package `rms`, command `rms`
-├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, inventory, hooks, setup, cli, tui
+├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, inventory, warns, hooks, setup, cli, tui
 ├── tests/                  unittest (sessions, claims, hooks, TUI)
 ├── sandbox/demo-project/   template of the demo project (rms.json, threads/, side/)
 └── sandbox/reset-demo.sh   builds sandbox/demo/root: a git root with source submodules (not in git)

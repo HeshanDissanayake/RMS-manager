@@ -14,13 +14,13 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Header, Label, RichLog, Static
 
-from rms import claims, sessions, store, threads
+from rms import claims, sessions, store, threads, warns
 from rms.config import Project
 
 STATE_STYLE = {"free": "dim", "live": "bold green", "stale": "bold yellow",
                "gone": "yellow", "ended": "dim"}
 EVENT_STYLE = {"claim": "green", "claim-refused": "red", "take-over": "yellow", "release": "cyan",
-               "denied": "red", "handover": "cyan", "handover-due": "yellow", "close": "magenta", "close-approved": "magenta", "close-refused": "red", "create": "green", "hook-error": "bold red", "session-start": "blue",
+               "denied": "red", "handover": "cyan", "handover-due": "yellow", "close": "magenta", "close-approved": "magenta", "close-refused": "red", "warning": "yellow", "warning-resolved": "green", "warning-dismissed": "dim", "create": "green", "hook-error": "bold red", "session-start": "blue",
                "session-end": "dim"}
 
 
@@ -79,7 +79,8 @@ class RMSApp(App):
     #top { height: 1fr; }
     #threads-pane { width: 3fr; }
     #sessions-pane { width: 2fr; }
-    #events-pane { height: 12; }
+    #events-pane { height: 10; }
+    #warnings-pane { height: 9; }
     .pane { border: round $primary-darken-2; padding: 0 1; }
     .pane:focus-within { border: round $accent; }
     .pane-title { text-style: bold; color: $text-muted; }
@@ -98,6 +99,8 @@ class RMSApp(App):
         Binding("q", "quit", "Quit"),
         Binding("x", "release", "Release claim"),
         Binding("c", "approve_close", "Approve close"),
+        Binding("d", "settle('dismissed')", "Dismiss warning", show=False),
+        Binding("v", "settle('resolved')", "Warning resolved", show=False),
         Binding("enter", "details", "Details", show=True),
         Binding("e", "toggle_ended", "Show ended"),
         Binding("r", "refresh", "Refresh"),
@@ -122,6 +125,9 @@ class RMSApp(App):
             with Vertical(id="sessions-pane", classes="pane"):
                 yield Label("Sessions", classes="pane-title")
                 yield DataTable(id="sessions", cursor_type="row", zebra_stripes=True)
+        with Vertical(id="warnings-pane", classes="pane"):
+            yield Label("Warnings (for you: d dismiss, v resolved)", classes="pane-title")
+            yield DataTable(id="warnings", cursor_type="row", zebra_stripes=True)
         with Vertical(id="events-pane", classes="pane"):
             yield Label("Events", classes="pane-title")
             yield RichLog(id="events", markup=False, wrap=False)
@@ -133,6 +139,8 @@ class RMSApp(App):
             "ID", "Thread", "Status", "Claim", "Held by", "Since")
         self.query_one("#sessions", DataTable).add_columns(
             "Session", "State", "Thread", "Where", "Started", "Last seen")
+        self.query_one("#warnings", DataTable).add_columns("ID", "Thread", "Warning", "Since")
+        self.warning_ids: list[str] = []
         self.refresh_all()
         self.set_interval(1.0, self.refresh_all)
         self.query_one("#threads", DataTable).focus()
@@ -183,10 +191,23 @@ class RMSApp(App):
         if self.session_ids:
             stt.move_cursor(row=min(row, len(self.session_ids) - 1), animate=False)
 
+        wt = self.query_one("#warnings", DataTable)
+        row = wt.cursor_row
+        wt.clear()
+        self.warning_ids = []
+        for w in warns.open_rows(p):
+            wt.add_row(Text(w["id"], style="bold yellow"), w.get("thread") or "", w["text"],
+                       _time(w.get("first_seen")))
+            self.warning_ids.append(w["id"])
+        if self.warning_ids:
+            wt.move_cursor(row=min(row, len(self.warning_ids) - 1), animate=False)
+
         stale = sum(claims.state(p, c)[0] == "stale" for c in cl.values())
         summary = f"{len(all_threads)} threads · {len(cl)} claimed · {live} live sessions"
         if stale:
             summary += f" · {stale} stale claim{'s' if stale > 1 else ''} (select, x to release)"
+        if self.warning_ids:
+            summary += f" · {len(self.warning_ids)} open warning{'s' if len(self.warning_ids) > 1 else ''}"
         self.query_one("#summary", Static).update(summary)
 
         log = self.query_one("#events", RichLog)
@@ -248,6 +269,22 @@ class RMSApp(App):
         body = (threads.summary(t, f) + "\n\nClaim: " + claims.describe(p, claims.get(p, t.id))
                 + "\n\n" + inventory.view_text(p, t.id))
         self.push_screen(TextScreen(f"{t.id}  {t.name}", body))
+
+    def action_settle(self, status: str) -> None:
+        if self._focused_table() != "warnings" or not self.warning_ids:
+            self.notify("select a warning first (tab to the Warnings pane)", severity="warning")
+            return
+        wtable = self.query_one("#warnings", DataTable)
+        wid = self.warning_ids[min(wtable.cursor_row, len(self.warning_ids) - 1)]
+        verb = "Dismiss (accept as is)" if status == "dismissed" else "Mark resolved"
+
+        def done(yes: bool | None) -> None:
+            if yes:
+                warns.settle(self.project, wid, status, by="owner (tui)")
+                self.notify(f"{wid} {status}")
+                self.refresh_all()
+
+        self.push_screen(ConfirmScreen(f"{verb}: {wid}?", "Yes (y)"), done)
 
     def action_approve_close(self) -> None:
         from rms import lifecycle

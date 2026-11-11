@@ -118,7 +118,22 @@ RMS records and reconciles. It never builds and never runs a recipe.
 
 The source comes from the build files and the recipe from the logged commands.
 
-At handover (and close), every unrecorded folder that looks like this thread's blocks until it is recorded (`rms build add`) or ignored (`rms build ignore`). At a milestone, the thread's builds and the builds it uses are pinned (`milestones`, `milestone_uses`) and never become clean-up candidates.
+At a milestone, the thread's builds and the builds it uses are pinned (`milestones`, `milestone_uses`) and never become clean-up candidates.
+
+## Warnings (for the owner)
+
+RMS never stops work over a mismatch. It notes it as a **warning** in `store/rms/warnings.json`, at handover and close (that thread's finds) and at `rms scan` (everything).
+
+| kind | when |
+|---|---|
+| `unrecorded-build` | a build folder no thread recorded (with the guessed thread and source) |
+| `missing-build` | a recorded build not on disk and not archived |
+| `unknown-data` | a data folder of no known thread |
+
+- `rms warnings` lists the open ones; the TUI has a Warnings pane.
+- **Resolved:** RMS marks a warning resolved itself once a later check no longer finds its cause (the build was recorded, ignored or removed). The owner can also mark it with `rms warnings resolve <id>` or `v` in the TUI.
+- **Dismissed:** the owner accepts it as it is, with `rms warnings dismiss <id> [--note …]` or `d` in the TUI. It stays dismissed.
+- Only the owner settles warnings. The hook blocks `rms warnings dismiss|resolve` for sessions.
 
 ## Rules the hooks apply
 

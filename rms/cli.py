@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threads
+from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threads, warns
 from rms.git import GitError
 from rms.config import CONFIG_NAME, Project, find_project, init_project, load
 
@@ -313,8 +313,36 @@ def cmd_store(args) -> int:
     return 0
 
 
+def cmd_warnings(args) -> int:
+    p = _project(args)
+    if args.action in ("dismiss", "resolve"):
+        if sessions.current_id():
+            return _fail("settling warnings is the owner's: run it in your own terminal")
+        if not args.id:
+            return _fail(f"rms warnings {args.action} W-XXXXXX")
+        try:
+            w = warns.settle(p, args.id, "dismissed" if args.action == "dismiss" else "resolved",
+                             note=args.note or "")
+        except KeyError as e:
+            return _fail(str(e))
+        print(f"{w['id']} {w['status']}")
+        return 0
+    rows = warns.load(p) if args.all else warns.open_rows(p, (args.thread or "").upper() or None)
+    if not rows:
+        print("no open warnings" if not args.all else "no warnings")
+        return 0
+    for w in rows:
+        st = "" if w["status"] == "open" else f" [{w['status']}]"
+        print(f"  {w['id']}  {w.get('thread') or '-':4} {w['text']}{st}")
+    if not args.all:
+        print("Settle: `rms warnings dismiss <id>` (accept as is) or `rms warnings resolve <id>`; "
+              "RMS resolves a warning itself once its cause is gone.")
+    return 0
+
+
 def cmd_scan(args) -> int:
     p = _project(args)
+    warns.check(p, by="scan")
     r = inventory.scan(p)
     if not any(r.values()):
         print("records and disk agree")
@@ -532,6 +560,14 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("store", help="a thread's builds, the builds it uses, its data")
     s.add_argument("thread", nargs="?")
     s.set_defaults(fn=cmd_store)
+
+    s = sub.add_parser("warnings", help="mismatches for the owner to settle")
+    s.add_argument("action", nargs="?", default="list", choices=["list", "dismiss", "resolve"])
+    s.add_argument("id", nargs="?")
+    s.add_argument("--all", action="store_true", help="also settled ones")
+    s.add_argument("--thread")
+    s.add_argument("--note")
+    s.set_defaults(fn=cmd_warnings)
 
     s = sub.add_parser("scan", help="find builds/data on disk that the records miss")
     s.set_defaults(fn=cmd_scan)

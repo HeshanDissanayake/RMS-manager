@@ -368,7 +368,7 @@ def handover_steps(project: Project, tid: str) -> str:
 2. Update "## Where things are" (repo, branch, commit of everything the thread changed or used) and "## Open items".
 3. An idea that branched off: `rms create "<name>" --from {tid}` (a new parked thread).
 4. Source repos {srcs}: commit your changes there (RMS gives a changed repo the branch `{project.thread_branch(tid)}`).
-5. Builds: record each build this thread made (`rms build add <path> --recipe "..."`) and each it used (`rms build use <name>`). {_found_line(project, tid)}
+5. Builds: record each build this thread made (`rms build add <path> --recipe "..."`) and each it used (`rms build use <name>`). {_found_line(project, tid)} Anything left unrecorded becomes a warning for the owner; it does not stop the handover.
 Then run `rms handover -m "<one line: what this session did>"` again: RMS checks the note,
 commits on `{project.thread_branch(tid)}`, merges it into `{project.main_branch}` and releases the thread."""
 
@@ -432,11 +432,14 @@ def check_note(project: Project, tid: str, before: str | None = None) -> list[st
     return problems
 
 
-def _unrecorded_problems(project: Project, tid: str) -> list[str]:
-    from rms import inventory
-    return [f"{u['path']} looks like {tid}'s build ({u['why']}) but is not recorded: "
-            f"`rms build add {u['path']} ...` or `rms build ignore {u['path']}`"
-            for u in inventory.unrecorded_for(project, tid)]
+def _note_warnings(project: Project, tid: str, by: str) -> str:
+    """Record the thread's mismatches as warnings for the owner (never blocks)."""
+    from rms import warns
+    r = warns.check(project, thread=tid, by=by)
+    if not r["open"]:
+        return ""
+    return ("\nWarnings for the owner (" + str(len(r["open"])) + " open, `rms warnings`):\n"
+            + "\n".join(f"- {w['id']} {w['text']}" for w in r["open"]))
 
 
 def _headline(project: Project, tid: str) -> str:
@@ -481,7 +484,6 @@ def handover(project: Project, rec: dict, summary: str | None = None) -> tuple[s
         store.append_event(project.state_dir, "handover-due", session=rec["short"], thread=tid)
         return "due", handover_steps(project, tid)
     problems = check_note(project, tid, before=c.get("note_hash"))
-    problems += _unrecorded_problems(project, tid)
     if problems:
         store.append_event(project.state_dir, "handover-blocked", session=rec["short"],
                            thread=tid, problems=len(problems))
@@ -491,11 +493,12 @@ def handover(project: Project, rec: dict, summary: str | None = None) -> tuple[s
     sha = merge_into_main(project, tid, f"Merge {project.thread_branch(tid)}: {tid} handover {today()}",
                           {"Thread": tid}, keep_pointers=True,
                           index_edit=_index_status(tid, "paused"))
+    warn_text = _note_warnings(project, tid, by=rec["short"])
     claims.release(project, tid, session_id=rec["id"], by=rec["short"], reason="handover")
     store.append_event(project.state_dir, "handover", session=rec["short"], thread=tid,
                        commit=sha[:9])
     return "done", (f"{tid} handed over: committed on {project.thread_branch(tid)}, merged into "
-                    f"{project.main_branch} ({sha[:9]}); thread released.")
+                    f"{project.main_branch} ({sha[:9]}); thread released." + warn_text)
 
 
 # --- close / reopen ------------------------------------------------------------------
@@ -535,7 +538,6 @@ def close(project: Project, rec: dict, how: str, summary: str, parent: str | Non
                              f"{tid} in `rms tui`), then run this again")
     ensure_worktree(project, tid)
     problems = check_note(project, tid, before=c.get("claim_note_hash"))
-    problems += _unrecorded_problems(project, tid)
     if problems:
         raise LifecycleError("close needs the final State first:\n"
                              + "\n".join(f"- {p}" for p in problems))
@@ -596,6 +598,7 @@ def close(project: Project, rec: dict, how: str, summary: str, parent: str | Non
         merged = "nothing"
         merge_into_main(project, tid, f"Merge {br}: {tid} closed (nothing to merge)",
                         {"Thread": tid}, keep_pointers=True, index_edit=_index_done(tid, "nothing"))
+    _note_warnings(project, tid, by=rec["short"])
     claims.release(project, tid, session_id=rec["id"], by=rec["short"], reason="close")
     _approval_path(project, tid).unlink(missing_ok=True)  # used once
     store.append_event(project.state_dir, "close", session=rec["short"], thread=tid, merged=merged)

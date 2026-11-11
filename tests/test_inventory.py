@@ -91,25 +91,49 @@ class Inventory(SandboxCase):
         self.assertEqual(rc, 1)
         self.assertIn("store/data/T09", out)
 
-        # --- handover is blocked until T01's finds are recorded or ignored
+        # --- handover does not stop: T01's finds become warnings for the owner
+        from rms import warns
         self.rms("aaaa-1", "handover")
         self.note("T01", "Built fast; found leftovers.")
-        rc, out = self.rms("aaaa-1", "handover")
-        self.assertEqual(rc, 1)
-        self.assertIn("store/builds/simulator/quick looks like T01's build", out)
-        self.assertNotIn("T02-try", out)  # not T01's
-        self.rms("aaaa-1", "build", "add", "store/builds/simulator/quick", "--recipe", "configure")
-        self.rms("aaaa-1", "build", "add", "store/builds/misc/tables")
-        self.rms("aaaa-1", "build", "ignore", "store/builds/misc/blob")
-        rc, out = self.rms("aaaa-1", "handover", "-m", "builds")
+        rc, out = self.rms("aaaa-1", "handover", "-m", "first")
         self.assertEqual(rc, 0, out)
-        # the record went to main with the handover
+        self.assertIn("Warnings for the owner", out)
+        self.assertIn("store/builds/simulator/quick", out)
+        self.assertNotIn("T02-try", out)  # another thread's find: not this handover's
+        self.assertEqual(len(warns.open_rows(p, "T01")), 3)
+
+        # the next session records/ignores them; a scan resolves the warnings itself
+        self.session("dddd-4")
+        self.rms("dddd-4", "claim", "T01")
+        self.rms("dddd-4", "build", "add", "store/builds/simulator/quick", "--recipe", "configure")
+        self.rms("dddd-4", "build", "add", "store/builds/misc/tables")
+        self.rms("dddd-4", "build", "ignore", "store/builds/misc/blob")
+        self.rms(None, "scan")
+        self.assertEqual(warns.open_rows(p, "T01"), [])
+        still = {w["subject"]: w for w in warns.open_rows(p)}
+        self.assertIn("store/builds/fastlib/T02-try", still)
+        self.assertIn("store/data/T09", still)
+        # only the owner settles a warning
+        wid = still["store/data/T09"]["id"]
+        rc, out = self.rms("dddd-4", "warnings", "dismiss", wid)
+        self.assertEqual(rc, 1)
+        rc, out = self.rms(None, "warnings", "dismiss", wid, "--note", "scratch")
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("store/data/T09", {w["subject"] for w in warns.open_rows(p)})
+        self.rms(None, "scan")  # a dismissed warning stays dismissed
+        self.assertNotIn("store/data/T09", {w["subject"] for w in warns.open_rows(p)})
+
+        # second handover takes the records to main
+        self.rms("dddd-4", "handover")
+        self.note("T01", "Recorded the builds.")
+        rc, out = self.rms("dddd-4", "handover", "-m", "records")
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("Warnings for the owner", out)
         on_main = json.loads(git(root, "show", "main:threads/T01-fast-sort/store.json"))
         self.assertEqual({b["name"] for b in on_main["builds"]},
                          {"fastlib/T01-fast", "simulator/quick", "misc/tables"})
         self.assertEqual(on_main["uses"], ["fastlib/base"])
         self.assertEqual(on_main["ignore"], ["store/builds/misc/blob"])
-        # the record is read from the branch once the checkout's copy is gone? (still there)
         self.assertEqual(inventory.read_record(p, "T01")["uses"], ["fastlib/base"])
 
         # --- missing: a recorded build whose folder vanished

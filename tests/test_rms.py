@@ -170,7 +170,8 @@ class TestHooks(Fixture):
                     "find . -delete", "rms claim T01; rm x", "python3 x.py",
                     "sed -i s/a/b/ f", "git branch -D x", "(rm x) || ls",
                     "rms claim T01 > out.txt", "ls $(rm x)", "rms claim T01 & rm x",
-                    "rms approve-close T01", "env -u X rms approve-close T01"]:
+                    "rms approve-close T01", "env -u X rms approve-close T01",
+                    "rms warnings dismiss W-ABC123"]:
             out = self._pre("cafe-1", "Bash", command=bad)
             self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny", bad)
         claims.claim(self.p, "cafe-1", "T01")
