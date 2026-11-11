@@ -65,6 +65,44 @@ def install_hooks(root: Path, rms_cmd: str, scope: str = "project") -> Path:
     return path
 
 
+# --- the Claude Code mod (rms-thread), per project ------------------------------
+
+MOD = "rms-thread@rms-manager"
+
+
+def rms_home() -> Path:
+    """This RMS checkout (the marketplace that lists the mod)."""
+    return Path(__file__).resolve().parent.parent
+
+
+def install_mod(root: Path, scope: str = "project") -> list[str]:
+    """Turn the rms-thread mod on for one project (its .claude/settings*.json).
+
+    Uses Claude Code's own commands, run in the project folder: add this repo
+    as a marketplace and install the mod, both at project (or local) scope, so
+    `claude` started there loads it and other folders do not.
+    """
+    if scope not in SCOPES:
+        raise ValueError(f"unknown scope {scope!r} (project or local)")
+    out = []
+    for argv in (["claude", "plugin", "marketplace", "add", str(rms_home()), "--scope", scope],
+                 ["claude", "plugin", "install", MOD, "--scope", scope]):
+        r = subprocess.run(argv, cwd=root, capture_output=True, text=True)
+        text = (r.stdout + r.stderr).strip().splitlines()
+        out.append(text[-1] if text else "")
+        if r.returncode != 0:
+            raise ValueError(f"{' '.join(argv[:4])}: {out[-1]}")
+    return out
+
+
+def mod_enabled(root: Path) -> bool:
+    for scope in SCOPES:
+        data = store.read_json(settings_path(root, scope), {}) or {}
+        if (data.get("enabledPlugins") or {}).get(MOD):
+            return True
+    return False
+
+
 # --- the check ----------------------------------------------------------------
 
 def _hook_commands(root: Path) -> dict[str, list[tuple[Path, str]]]:
@@ -153,6 +191,9 @@ def doctor(root: Path) -> list[tuple[str, str]]:
                 fail(f"hook {event} in {path}: program {exe} not found or not executable")
             else:
                 ok(f"hook {event} in {p.rel(path)} -> {exe.resolve()}")
+    if not mod_enabled(root):
+        out.append(("note", f"the rms-thread mod (thread picker, thread band) is not on for "
+                            f"this project: rms install-mod {root}"))
     if all(found.values()):
         out.append(("note", f"start `claude` in {root}: sessions started in a subfolder "
                             "do not read these hooks and are not seen by RMS"))

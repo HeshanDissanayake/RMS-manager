@@ -49,6 +49,7 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 | command | what |
 |---|---|
 | `rms adopt [dir] [--local]` | put RMS on a project: `rms.json` + hooks (merged) + `doctor` |
+| `rms install-mod [dir] [--local]` | turn the rms-thread Claude Code mod on for this project only |
 | `rms doctor [dir]` | check a project's setup: config, folders, git-ignore, hooks and the `rms` path |
 | `rms init [dir]` | create `rms.json` only |
 | `rms install-hooks [dir] [--local] [--print]` | merge RMS's hooks into a settings file (others kept), or print them |
@@ -78,7 +79,7 @@ State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `e
 
 ## Claude Code mod: `mods/rms-thread`
 
-In an RMS project a session that holds no thread gets a picker at start ("Which thread will this session work on?"); the band right above the prompt then shows `RMS T01 fast sort · store/worktrees/T01/` (and "handover due"). `/thread` picks or shows it. Source in `mods/rms-thread/` (tests: `claude plugin test mods/rms-thread`). This repo is its marketplace (`.claude-plugin/marketplace.json`); install it with `/plugin install rms-thread --marketplace HeshanDissanayake/RMS-manager` (a new machine: `docs/adopting.md`, "Moving to a new machine"). RMS's UserPromptSubmit hook tells Claude about a thread picked there.
+In an RMS project a session that holds no thread gets a picker at start ("Which thread will this session work on?"); the band right above the prompt then shows `RMS T01 fast sort · store/worktrees/T01/` (and "handover due"). `/thread` picks or shows it. Source in `mods/rms-thread/` (tests: `claude plugin test mods/rms-thread`). This repo is its marketplace (`.claude-plugin/marketplace.json`). **Per project:** `rms install-mod <project>` (project scope: only `claude` started there loads it; the sandbox reset does this). For every folder: `/plugin install rms-thread --marketplace HeshanDissanayake/RMS-manager` (a new machine: `docs/adopting.md`, "Moving to a new machine"). RMS's UserPromptSubmit hook tells Claude about a thread picked there.
 
 ## Layout
 

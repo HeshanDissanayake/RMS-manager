@@ -48,6 +48,11 @@ for repo in "${SOURCES[@]}"; do
   g -C "$ROOT" config -f .gitmodules "submodule.src/$repo.update" none
 done
 "$RMS" install-hooks "$ROOT" >/dev/null
+# the rms-thread mod, on for this folder only (project scope)
+# (not for the test suite's throwaway copies: Claude Code records each install)
+if [ -z "${RMS_DEMO_DIR:-}" ]; then
+  "$RMS" install-mod "$ROOT" >/dev/null || echo "note: rms-thread mod not installed (is claude on PATH?)"
+fi
 # T00's shared base build: record its real source commit
 FASTLIB_SHA="$(git -C "$DEMO/origins/fastlib.git" rev-parse main)"
 sed -i "s/(set by reset-demo.sh)/$FASTLIB_SHA/" "$ROOT/threads/T00-main/store.json"

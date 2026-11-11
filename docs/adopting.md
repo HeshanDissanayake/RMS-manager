@@ -42,15 +42,17 @@ The folder names are defaults; `rms.json` can point elsewhere (`threads_dir`, `i
    `side/<name>/` folder is not managed by RMS; it follows the project's side-session rules.
    ```
 
-4. **Ignore the state folder in git:** add `store/` (or `store/rms/`) to the project's `.gitignore`.
+4. **The Claude Code mod, for this project only:** `rms install-mod <project>` (or `--local`). It runs Claude Code's own `claude plugin marketplace add <RMS-manager> --scope project` and `claude plugin install rms-thread@rms-manager --scope project` in the project folder. The project's `.claude/settings.json` then names the mod (`enabledPlugins`) and where it comes from (`extraKnownMarketplaces`, this repo's folder). `claude` started in the project loads it; other folders do not, and no `--plugin-dir` is needed. It loads straight from `mods/rms-thread/`, so edits there apply to the next session.
 
-5. **Check:**
+5. **Ignore the state folder in git:** add `store/` (or `store/rms/`) to the project's `.gitignore`.
+
+6. **Check:**
    ```bash
    rms doctor <project>
    ```
    It checks `rms.json`, the threads folder and index, that `store/rms/` is writable and git-ignored, and that all three hooks are present and point to an existing `rms`. It exits 1 if anything would stop RMS from working.
 
-6. **Try it:** start `claude` in the project root and type `hi`. You should see the RMS line with the thread list, and Claude should ask which thread. `rms tui` (run from the project) shows the session appear.
+7. **Try it:** start `claude` in the project root and type `hi`. You should see the RMS line with the thread list, and Claude should ask which thread. `rms tui` (run from the project) shows the session appear.
 
 ## Moving to a new machine (or a fresh Claude Code)
 
@@ -62,7 +64,7 @@ Everything RMS needs is in two places: this repo (the program, the mod) and each
    cd RMS-manager && python3 -m venv .venv && .venv/bin/pip install -e .
    ```
 2. **The project's hooks:** they hold the path to `rms` on the old machine. Run `rms install-hooks <project>` again (it replaces only RMS's own entries), then `rms doctor <project>`.
-3. **The mod `rms-thread`** (thread picker at session start, thread band above the prompt). Run at the prompt of a terminal Claude Code session:
+3. **The mod `rms-thread`** (thread picker at session start, thread band above the prompt). Per project, from the local clone: `rms install-mod <project>` (step 4 above). Or for every folder, from GitHub, at the prompt of a terminal Claude Code session:
    ```
    /plugin install rms-thread --marketplace HeshanDissanayake/RMS-manager
    ```

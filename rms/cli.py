@@ -449,6 +449,19 @@ def cmd_install_hooks(args) -> int:
     return 0
 
 
+def cmd_install_mod(args) -> int:
+    root = Path(args.dir).resolve()
+    if not (root / CONFIG_NAME).is_file():
+        return _fail(f"{root} has no {CONFIG_NAME} (run `rms adopt {args.dir}`)")
+    try:
+        for line in setup.install_mod(root, scope=_scope(args)):
+            print(line)
+    except (ValueError, FileNotFoundError) as e:
+        return _fail(str(e))
+    print(f"rms-thread is on for {root} only: start `claude` there")
+    return 0
+
+
 def _print_doctor(root: Path) -> int:
     marks = {"ok": "  ok  ", "note": "  note", "warn": "  warn", "fail": "  FAIL"}
     results = setup.doctor(root)
@@ -635,6 +648,11 @@ def build_parser() -> argparse.ArgumentParser:
     _scope_args(s)
     s.add_argument("--command", help="how the hooks call rms (default: this executable)")
     s.set_defaults(fn=cmd_install_hooks)
+
+    s = sub.add_parser("install-mod", help="turn the rms-thread Claude Code mod on for one project")
+    s.add_argument("dir", nargs="?", default=".")
+    _scope_args(s)
+    s.set_defaults(fn=cmd_install_mod)
 
     s = sub.add_parser("doctor", help="check a project's RMS setup (config, hooks, folders)")
     s.add_argument("dir", nargs="?", default=".")
