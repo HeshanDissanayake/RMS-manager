@@ -61,12 +61,15 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 | `rms approve-close T<NN>` | owner only: the yes that `rms close` needs (once) |
 | `rms close --milestone\|--merge-into T<P>\|--no-merge -m "…"` | close the thread: milestone M<N> (tags), merge point, or nothing |
 | `rms reopen T<NN>` · `rms archive T<NN>` · `rms restore T<NN>` | reopen a done thread; pack/unpack its data (sha256) |
+| `rms build add\|use\|unuse\|ignore …` | record what the thread built / uses (RMS fills in source commits) |
+| `rms store [T<NN>]` · `rms builds` · `rms env [T<NN>]` | a thread's builds, uses and data; all builds; shell exports |
+| `rms scan` · `rms gc` | find unrecorded builds and data (with guesses); list clean-up candidates (removes nothing) |
 | `rms status [T<NN>]` | a thread's State and How to resume |
 | `rms log [-n N]` | recent events |
 | `rms tui` | the terminal UI |
 | `rms hook <event>` | called by Claude Code |
 
-State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `events.jsonl`). Tests: `.venv/bin/python -m unittest discover -s tests`.
+State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `events.jsonl`). Tests: `.venv/bin/python -m unittest discover -s tests -t .`.
 
 **Where the hooks go:** only in the project's own `.claude/settings.json` (or `settings.local.json`), never at user level (owner, 2026-11-11). Claude Code reads them only when `claude` starts in that exact folder, so **sessions start in the project root**: see [`docs/how-it-works.md`](docs/how-it-works.md).
 
@@ -79,7 +82,7 @@ RMS-manager/
 ├── README.md, NOTES.md, CLAUDE.md
 ├── docs/                   how-it-works.md, adopting.md
 ├── pyproject.toml          package `rms`, command `rms`
-├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, hooks, setup, cli, tui
+├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, inventory, hooks, setup, cli, tui
 ├── tests/                  unittest (sessions, claims, hooks, TUI)
 ├── sandbox/demo-project/   template of the demo project (rms.json, threads/, side/)
 └── sandbox/reset-demo.sh   builds sandbox/demo/root: a git root with source submodules (not in git)

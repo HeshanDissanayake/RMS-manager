@@ -48,6 +48,9 @@ for repo in "${SOURCES[@]}"; do
   g -C "$ROOT" config -f .gitmodules "submodule.src/$repo.update" none
 done
 "$RMS" install-hooks "$ROOT" >/dev/null
+# T00's shared base build: record its real source commit
+FASTLIB_SHA="$(git -C "$DEMO/origins/fastlib.git" rev-parse main)"
+sed -i "s/(set by reset-demo.sh)/$FASTLIB_SHA/" "$ROOT/threads/T00-main/store.json"
 g -C "$ROOT" add -A
 g -C "$ROOT" commit -q -m "Sandbox root: threads, rms.json, hooks, source submodules
 
@@ -59,6 +62,16 @@ for t in "$ROOT"/threads/T*/; do
   [ "$id" = "T00" ] && continue
   g -C "$ROOT" branch "thread/$id"
 done
+
+# 4. the store (not in git): a shared build, some data, old data of the done thread T03
+B="$ROOT/store/builds/fastlib/base"
+mkdir -p "$B/lib"
+printf 'CMAKE_HOME_DIRECTORY:INTERNAL=%s\nCMAKE_BUILD_TYPE:STRING=Release\n' "$ROOT/src/fastlib" > "$B/CMakeCache.txt"
+head -c 200000 /dev/urandom > "$B/lib/libfastlib.a"
+mkdir -p "$ROOT/store/data/T01/EXP-T01-01" "$ROOT/store/data/T03/EXP-T03-01"
+echo "n,time_ms" > "$ROOT/store/data/T01/EXP-T01-01/results.csv"
+head -c 500000 /dev/urandom > "$ROOT/store/data/T03/EXP-T03-01/raw.bin"
+touch -d '60 days ago' "$ROOT/store/data/T03/EXP-T03-01/raw.bin" "$ROOT/store/data/T03/EXP-T03-01" "$ROOT/store/data/T03"
 
 echo "sandbox ready: $ROOT"
 g -C "$ROOT" branch --list

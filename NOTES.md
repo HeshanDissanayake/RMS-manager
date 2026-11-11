@@ -104,6 +104,14 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - Handover note = THREAD.md (State / How to resume / Where things are / Open items), as in LLVM-regsw. Worktree per thread, as in LLVM-regsw's PLAN section 5.
 - **Built 2026-11-11:** create, claim (checkout), handover (two steps), close (milestone / merge point / none), reopen, archive, restore (`rms/lifecycle.py`, docs/how-it-works.md "Thread lifecycle"). Owner (2026-11-11): the INDEX status changes only at handover (in-use = RMS's claims); `rms close` refuses without the owner's `rms approve-close T<NN>` (own terminal or TUI `c`; blocked for sessions). Source repos get the thread's branch only when the thread changes them (first edit, or at handover); tags only `milestone-<N>` (owner 2026-11-11). Tested end to end (`tests/test_lifecycle.py`) and with a real Claude session (Haiku) doing claim, source commit and handover in the sandbox.
 
+## 10c. Builds and data per thread (owner 2026-11-11)
+
+- RMS records and reconciles; it never builds or runs recipes. Sessions record (`rms build add/use`); RMS fills in what it can know (source commit from the thread's checkout).
+- One file per thread: `threads/T<NN>-*/store.json` (builds made, builds used, ignored folders). Data needs no record (`store/data/T<NN>/`).
+- Sessions that did not tell RMS (e.g. a cloud session): `rms scan` finds unrecorded build folders and guesses thread (name, build files, logged command, claim at write time), source and recipe; the thread's handover is blocked until they are recorded or ignored.
+- `rms gc` lists candidates (LLVM-regsw's gc rule: not needed by an open thread or a milestone, unchanged for 4 weeks; cheap -> owner removes, expensive/data -> archive first). `rms archive/restore` for data (thread or experiment) and builds.
+- **Built 2026-11-11, sandbox only** (`tests/test_inventory.py`). Migrating LLVM-regsw's `shared/builds.md` and `catalog.csv`: later.
+
 ## 11. Open questions
 
 - Can Claude Code hooks rewrite a command (for `tee` into consoles)? Later.

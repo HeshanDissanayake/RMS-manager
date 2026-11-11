@@ -243,7 +243,10 @@ class RMSApp(App):
         t = threads.discover(p).get(tid) if tid else None
         if not t:
             return
-        body = threads.summary(t) + "\n\nClaim: " + claims.describe(p, claims.get(p, t.id))
+        from rms import inventory, lifecycle
+        f = lifecycle.thread_file(p, t.id) if lifecycle.uses_git(p) else None
+        body = (threads.summary(t, f) + "\n\nClaim: " + claims.describe(p, claims.get(p, t.id))
+                + "\n\n" + inventory.view_text(p, t.id))
         self.push_screen(TextScreen(f"{t.id}  {t.name}", body))
 
     def action_approve_close(self) -> None:

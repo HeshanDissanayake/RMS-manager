@@ -12,7 +12,7 @@ This folder is its **own git repo** (remote `github`, the owner pushes). Commit 
 
 ## What this is
 
-RMS (Research Manager) is one program that runs a long, multi-session research project. It keeps the registry and history, runs the thread lifecycle as fixed commands, holds locks, enforces the mechanical rules, tracks jobs/consoles, and serves an API to frontends ([RMS-web](../RMS-web/)). The first user is LLVM-regsw. **Built:** sessions, thread claims, hooks, CLI, terminal UI, thread lifecycle (create, handover, close, archive; see README). It runs on the sandbox (`sandbox/reset-demo.sh` → `sandbox/demo/root`), not yet on LLVM-regsw.
+RMS (Research Manager) is one program that runs a long, multi-session research project. It keeps the registry and history, runs the thread lifecycle as fixed commands, holds locks, enforces the mechanical rules, tracks jobs/consoles, and serves an API to frontends ([RMS-web](../RMS-web/)). The first user is LLVM-regsw. **Built:** sessions, thread claims, hooks, CLI, terminal UI, thread lifecycle (create, handover, close, archive), builds and data per thread (record, scan, gc; see README). It runs on the sandbox (`sandbox/reset-demo.sh` → `sandbox/demo/root`), not yet on LLVM-regsw.
 
 Read first:
 - [`NOTES.md`](NOTES.md): the agreed design, stages and open questions. It is the source of truth for decisions. "Agreed" = owner said yes; "proposed" = not decided.
@@ -41,5 +41,5 @@ Read first:
 ## Working on the code
 
 - Install once: `python3 -m venv .venv && .venv/bin/pip install -e .`; run `.venv/bin/rms ...`.
-- Tests: `.venv/bin/python -m unittest discover -s tests` (temp files go in `.tmp/`). Run them before every commit.
+- Tests: `.venv/bin/python -m unittest discover -s tests -t .` (temp files go in `.tmp/`). Run them before every commit.
 - Try changes on the sandbox (`sandbox/reset-demo.sh` rebuilds `sandbox/demo/root` from the template `sandbox/demo-project/`); never install hooks or `rms.json` into LLVM-regsw without the owner.

@@ -1,0 +1,21 @@
+{
+  "builds": [
+    {
+      "name": "fastlib/base",
+      "tool": "fastlib",
+      "path": "store/builds/fastlib/base",
+      "source": {"repo": "src/fastlib", "branch": "main", "commit": "(set by reset-demo.sh)", "dirty": false},
+      "recipe": "cmake -S src/fastlib -B store/builds/fastlib/base && cmake --build store/builds/fastlib/base",
+      "cost": "cheap",
+      "env": "FASTLIB_BUILD",
+      "shared": true,
+      "milestones": [],
+      "note": "the shared base build every thread starts from",
+      "added": "2026-11-11T00:00:00+11:00",
+      "by": "owner",
+      "how": "registered"
+    }
+  ],
+  "uses": [],
+  "ignore": []
+}

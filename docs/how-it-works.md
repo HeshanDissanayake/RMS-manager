@@ -92,6 +92,34 @@ main ── T00, INDEX, every thread's records (merged at handover); source poin
 - RMS never moves the root's own source checkouts (`update = none`). After a milestone the root shows `src/<repo>` as "new commits", which is expected.
 - `rms` run inside a thread's checkout works on the real root, because a checkout is recognised by its `.git` file.
 
+## Builds and data (what each thread built, uses and stored)
+
+RMS records and reconciles. It never builds and never runs a recipe.
+
+- **Record, one file per thread:** `threads/T<NN>-<name>/store.json` has `builds` (made by this thread: path, source repo + commit, recipe, cost, env name, milestones), `uses` (other threads' builds by name) and `ignore` (found folders that are not builds). RMS writes it in the thread's checkout; it goes to main with the handover.
+- **Data needs no record:** everything under `store/data/T<NN>/` belongs to T<NN>.
+- **Builds live in** `store/builds/<tool>/<name>/` (a thread's own: `<tool>/T<NN>-<name>`).
+
+| command | what |
+|---|---|
+| `rms build add <path> [--recipe …] [--cost cheap\|expensive] [--env VAR]` | the holder records a build. RMS fills in the source repo and its commit from the thread's checkout. |
+| `rms build use <name>` / `unuse` / `ignore <path>` | the builds this thread uses; a found folder that is not a build |
+| `rms store [T<NN>]` | builds made, builds used, data, with sizes; also shown at `rms claim` and in the TUI details |
+| `rms env [T<NN>]` | `export VAR=path` for the thread's builds |
+| `rms scan` | records vs disk: unrecorded build folders (with guesses), recorded builds missing on disk, data of unknown threads |
+| `rms gc [--weeks N]` | what could go: builds no open thread or milestone needs, data of done threads, unchanged for N weeks (default 4). Cheap: the owner may remove it. Expensive or data: archive first. Removes nothing. |
+| `rms archive T<NN> [--exp EXP]` · `rms archive --build NAME` · `rms restore …` | tar.gz + sha256 in `store/archive/catalog.csv`; restore checks the sha256 |
+
+**Sessions that did not tell RMS.** `rms scan` guesses an unrecorded folder's thread, in this order:
+1. its name (`T<NN>-…`)
+2. its build files (`CMakeCache.txt`, `config.log`) pointing into a thread's checkout
+3. a logged command that names the path (the PreToolUse hook logs every Bash command to `store/rms/commands.jsonl`)
+4. the single thread that was claimed when its files were written
+
+The source comes from the build files and the recipe from the logged commands.
+
+At handover (and close), every unrecorded folder that looks like this thread's blocks until it is recorded (`rms build add`) or ignored (`rms build ignore`). At a milestone, the thread's builds and the builds it uses are pinned (`milestones`, `milestone_uses`) and never become clean-up candidates.
+
 ## Rules the hooks apply
 
 - **Before a thread is held:** Edit and Write are denied. Bash runs only `rms …` and read-only commands (`ls`, `cat`, `grep`, `git log`/`status`/`diff`, …), optionally joined by `|`, `&&` or `||` and with `2>&1`. Anything else is denied with the reason.

@@ -368,6 +368,7 @@ def handover_steps(project: Project, tid: str) -> str:
 2. Update "## Where things are" (repo, branch, commit of everything the thread changed or used) and "## Open items".
 3. An idea that branched off: `rms create "<name>" --from {tid}` (a new parked thread).
 4. Source repos {srcs}: commit your changes there (RMS gives a changed repo the branch `{project.thread_branch(tid)}`).
+5. Builds: record each build this thread made (`rms build add <path> --recipe "..."`) and each it used (`rms build use <name>`). {_found_line(project, tid)}
 Then run `rms handover -m "<one line: what this session did>"` again: RMS checks the note,
 commits on `{project.thread_branch(tid)}`, merges it into `{project.main_branch}` and releases the thread."""
 
@@ -376,6 +377,14 @@ def note_hash(project: Project, tid: str) -> str | None:
     d = thread_dir(project, tid)
     f = d / "THREAD.md" if d else None
     return hashlib.sha256(f.read_bytes()).hexdigest() if f and f.is_file() else None
+
+
+def _found_line(project: Project, tid: str) -> str:
+    from rms import inventory
+    found = inventory.unrecorded_for(project, tid)
+    if not found:
+        return "RMS found no unrecorded builds of this thread."
+    return "RMS found these unrecorded: " + ", ".join(u["path"] for u in found) + "."
 
 
 def check_note(project: Project, tid: str, before: str | None = None) -> list[str]:
@@ -423,6 +432,13 @@ def check_note(project: Project, tid: str, before: str | None = None) -> list[st
     return problems
 
 
+def _unrecorded_problems(project: Project, tid: str) -> list[str]:
+    from rms import inventory
+    return [f"{u['path']} looks like {tid}'s build ({u['why']}) but is not recorded: "
+            f"`rms build add {u['path']} ...` or `rms build ignore {u['path']}`"
+            for u in inventory.unrecorded_for(project, tid)]
+
+
 def _headline(project: Project, tid: str) -> str:
     f = thread_file(project, tid)
     if not f:
@@ -465,6 +481,7 @@ def handover(project: Project, rec: dict, summary: str | None = None) -> tuple[s
         store.append_event(project.state_dir, "handover-due", session=rec["short"], thread=tid)
         return "due", handover_steps(project, tid)
     problems = check_note(project, tid, before=c.get("note_hash"))
+    problems += _unrecorded_problems(project, tid)
     if problems:
         store.append_event(project.state_dir, "handover-blocked", session=rec["short"],
                            thread=tid, problems=len(problems))
@@ -518,6 +535,7 @@ def close(project: Project, rec: dict, how: str, summary: str, parent: str | Non
                              f"{tid} in `rms tui`), then run this again")
     ensure_worktree(project, tid)
     problems = check_note(project, tid, before=c.get("claim_note_hash"))
+    problems += _unrecorded_problems(project, tid)
     if problems:
         raise LifecycleError("close needs the final State first:\n"
                              + "\n".join(f"- {p}" for p in problems))
@@ -529,6 +547,9 @@ def close(project: Project, rec: dict, how: str, summary: str, parent: str | Non
         pc = claims.get(project, parent)
         if pc and claims.state(project, pc)[0] == "live":
             raise LifecycleError(f"{parent} is in use by {pc['short']}; merge when it is free")
+    if how == "milestone":
+        from rms import inventory
+        inventory.pin_milestone(project, tid, f"M{next_milestone(project)}")
     _commit_thread(project, tid, f"{tid} closed: {summary}")
 
     if how == "milestone":
@@ -608,58 +629,91 @@ def _catalog(project: Project) -> Path:
     return project.archive_dir / "catalog.csv"
 
 
-def archive(project: Project, tid: str, by: str = "owner") -> dict:
-    """Pack <data_dir>/<tid>/ into the archive (sha256 in catalog.csv). Removes nothing."""
-    tid = tid.upper()
-    row = index.get(project.index_file.read_text(encoding="utf-8"), tid) \
-        if project.index_file.is_file() else None
-    if not row or not row.get("status", "").lower().startswith("done"):
-        raise LifecycleError(f"only done threads are archived ({tid}: "
-                             f"{row.get('status') if row else 'not in the index'})")
-    src = project.data_dir / tid
-    if not src.is_dir() or not any(src.iterdir()):
-        raise LifecycleError(f"no data to archive in {project.rel(src)}/")
+CATALOG_FIELDS = ["kind", "name", "thread", "file", "sha256", "bytes", "date", "source"]
+
+
+def catalog_rows(project: Project) -> list[dict]:
+    if not _catalog(project).is_file():
+        return []
+    with open(_catalog(project), encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def _pack(project: Project, src: Path, kind: str, name: str, tid: str, by: str) -> dict:
+    """tar.gz src into the archive; sha256 + size in catalog.csv. Removes nothing."""
     project.archive_dir.mkdir(parents=True, exist_ok=True)
-    base = f"{tid}-{today()}"
+    base = f"{kind}-{name.replace('/', '_')}-{today()}"
     out = project.archive_dir / f"{base}.tar.gz"
     k = 1
     while out.exists():
         k += 1
         out = project.archive_dir / f"{base}-{k}.tar.gz"
     with tarfile.open(out, "w:gz") as tf:
-        tf.add(src, arcname=tid)
-    rec = {"thread": tid, "file": out.name, "sha256": _sha256(out), "bytes": out.stat().st_size,
-           "date": today(), "source": project.rel(src)}
+        tf.add(src, arcname=src.name)
+    rec = {"kind": kind, "name": name, "thread": tid, "file": out.name, "sha256": _sha256(out),
+           "bytes": out.stat().st_size, "date": today(), "source": project.rel(src)}
     new = not _catalog(project).exists()
     with open(_catalog(project), "a", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rec))
+        w = csv.DictWriter(f, fieldnames=CATALOG_FIELDS)
         if new:
             w.writeheader()
         w.writerow(rec)
-    store.append_event(project.state_dir, "archive", thread=tid, file=out.name, by=by)
+    store.append_event(project.state_dir, "archive", kind=kind, name=name, file=out.name, by=by)
     return rec
 
 
-def restore(project: Project, tid: str, file: str | None = None, by: str = "owner") -> dict:
-    """Unpack an archived copy back into <data_dir>/<tid>/ after checking its sha256."""
-    tid = tid.upper()
-    if not _catalog(project).is_file():
-        raise LifecycleError("no archive catalog")
-    with open(_catalog(project), encoding="utf-8") as f:
-        rows = [r for r in csv.DictReader(f) if r["thread"] == tid]
+def _status(project: Project, tid: str) -> str:
+    row = index.get(project.index_file.read_text(encoding="utf-8"), tid) \
+        if project.index_file.is_file() else None
+    return (row or {}).get("status", "")
+
+
+def archive(project: Project, tid: str | None = None, exp: str | None = None,
+            build: str | None = None, by: str = "owner") -> dict:
+    """Pack a done thread's data (all of it, or one experiment) or a build.
+
+    Nothing is deleted: the owner removes the working copy afterwards.
+    """
+    if build:
+        from rms import inventory
+        b = inventory.all_builds(project).get(build)
+        if not b:
+            raise LifecycleError(f"no recorded build {build}")
+        src = project.root / b["path"]
+        if not src.is_dir():
+            raise LifecycleError(f"{b['path']} is not on disk")
+        return _pack(project, src, "build", build, b["thread"], by)
+    tid = (tid or "").upper()
+    if not _status(project, tid).lower().startswith("done"):
+        raise LifecycleError(f"only done threads' data is archived ({tid}: "
+                             f"{_status(project, tid) or 'not in the index'})")
+    src = project.data_dir / tid / exp if exp else project.data_dir / tid
+    if not src.is_dir() or not any(src.iterdir()):
+        raise LifecycleError(f"no data to archive in {project.rel(src)}/")
+    return _pack(project, src, "data", f"{tid}/{exp}" if exp else tid, tid, by)
+
+
+def restore(project: Project, tid: str | None = None, exp: str | None = None,
+            build: str | None = None, file: str | None = None, by: str = "owner") -> dict:
+    """Unpack an archived copy back to where it came from, after checking its sha256."""
+    if build:
+        kind, name = "build", build
+    else:
+        kind, name = "data", f"{(tid or '').upper()}/{exp}" if exp else (tid or "").upper()
+    rows = [r for r in catalog_rows(project) if r.get("kind") == kind and r.get("name") == name]
     if file:
         rows = [r for r in rows if r["file"] == file]
     if not rows:
-        raise LifecycleError(f"no archive of {tid}" + (f" named {file}" if file else ""))
+        raise LifecycleError(f"no archive of {kind} {name}")
     rec = rows[-1]
     path = project.archive_dir / rec["file"]
     if _sha256(path) != rec["sha256"]:
         raise LifecycleError(f"{rec['file']}: sha256 does not match the catalog; not restored")
-    dst = project.data_dir / tid
+    dst = project.root / rec["source"]
     if dst.exists() and any(dst.iterdir()):
-        raise LifecycleError(f"{project.rel(dst)}/ is not empty; the owner moves it away first")
-    project.data_dir.mkdir(parents=True, exist_ok=True)
+        raise LifecycleError(f"{rec['source']}/ is not empty; the owner moves it away first")
+    dst.parent.mkdir(parents=True, exist_ok=True)
     with tarfile.open(path, "r:gz") as tf:
-        tf.extractall(project.data_dir, filter="data")
-    store.append_event(project.state_dir, "restore", thread=tid, file=rec["file"], by=by)
+        tf.extractall(dst.parent, filter="data")
+    store.append_event(project.state_dir, "restore", kind=kind, name=name, file=rec["file"], by=by)
     return rec

@@ -212,6 +212,9 @@ def pre_tool_use(project: Project, data: dict) -> dict | None:
     sessions.touch(project, rec)
     tool = data.get("tool_name", "")
     ti = data.get("tool_input") or {}
+    if tool == "Bash" and ti.get("command"):
+        from rms import inventory
+        inventory.log_command(project, rec, cwd, ti["command"])  # for `rms scan` guesses
     areas = claims.writable_areas(project, rec)
     no_thread = (f"RMS: session {rec['short']} holds no thread, so it may not change files. "
                  "Ask the owner which thread to work on, then run `rms claim <ID>` "

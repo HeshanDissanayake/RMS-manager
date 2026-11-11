@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from rms import __version__, claims, hooks, lifecycle, sessions, setup, store, threads
+from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threads
 from rms.git import GitError
 from rms.config import CONFIG_NAME, Project, find_project, init_project, load
 
@@ -112,6 +112,8 @@ def cmd_claim(args) -> int:
               f"{p.rel(t.folder) + '/' if t.folder else '(no folder)'}.")
     print()
     print(threads.summary(t, lifecycle.thread_file(p, t.id) if lifecycle.uses_git(p) else None))
+    print()
+    print(inventory.view_text(p, t.id))
     return 0
 
 
@@ -227,22 +229,136 @@ def cmd_reopen(args) -> int:
 
 def cmd_archive(args) -> int:
     p = _project(args)
+    if not args.thread and not args.build:
+        return _fail("name a thread (rms archive T<NN> [--exp EXP]) or --build NAME")
     def go():
-        r = lifecycle.archive(p, args.thread)
-        print(f"archived {p.rel(p.data_dir / r['thread'])}/ -> {p.rel(p.archive_dir / r['file'])} "
-              f"({r['bytes']} bytes, sha256 {r['sha256'][:12]}...). The working copy is kept: "
-              f"the owner removes it.")
+        r = lifecycle.archive(p, args.thread, exp=args.exp, build=args.build)
+        print(f"archived {r['source']}/ -> {p.rel(p.archive_dir / r['file'])} "
+              f"({inventory.human(int(r['bytes']))}, sha256 {r['sha256'][:12]}...). "
+              f"The working copy is kept: the owner removes it.")
         return 0
     return _lc(go)
 
 
 def cmd_restore(args) -> int:
     p = _project(args)
+    if not args.thread and not args.build:
+        return _fail("name a thread (rms restore T<NN> [--exp EXP]) or --build NAME")
     def go():
-        r = lifecycle.restore(p, args.thread, args.file)
-        print(f"restored {r['file']} (sha256 checked) -> {p.rel(p.data_dir / r['thread'])}/")
+        r = lifecycle.restore(p, args.thread, exp=args.exp, build=args.build, file=args.file)
+        print(f"restored {r['file']} (sha256 checked) -> {r['source']}/")
         return 0
     return _lc(go)
+
+
+def _holder(p):
+    rec = _session(p)
+    if rec is None or not rec.get("thread"):
+        raise inventory.InventoryError("run this from the Claude session that holds the thread")
+    return rec
+
+
+def _inv(fn):
+    try:
+        return fn()
+    except (inventory.InventoryError, lifecycle.LifecycleError, GitError) as e:
+        return _fail(str(e))
+
+
+def cmd_build(args) -> int:
+    p = _project(args)
+    def go():
+        rec = _holder(p)
+        if args.action == "add":
+            b = inventory.add_build(p, rec, args.path, name=args.name, tool=args.tool,
+                                    source=args.source, recipe=args.recipe or "",
+                                    cost=args.cost, env=args.env, shared=args.shared,
+                                    note=args.note or "")
+            src = b["source"] or {}
+            print(f"recorded {b['name']} ({b['path']}) for {rec['thread']}"
+                  + (f", from {src['repo']}@{src['commit'][:9]}" + (" (uncommitted changes!)"
+                     if src.get("dirty") else "") if src else ", source unknown"))
+        elif args.action == "use":
+            inventory.use_build(p, rec, args.path)
+            print(f"{rec['thread']} uses {args.path}")
+        elif args.action == "unuse":
+            inventory.use_build(p, rec, args.path, drop=True)
+            print(f"{rec['thread']} no longer uses {args.path}")
+        elif args.action == "ignore":
+            inventory.ignore_path(p, rec, args.path)
+            print(f"{args.path}: marked as not a build of {rec['thread']}")
+        return 0
+    return _inv(go)
+
+
+def cmd_builds(args) -> int:
+    p = _project(args)
+    rows = inventory.all_builds(p)
+    if not rows:
+        print("(no recorded builds)")
+    for name, b in sorted(rows.items()):
+        on = "" if (p.root / b["path"]).exists() else "  [not on disk]"
+        ms = f"  pinned {','.join(b['milestones'])}" if b.get("milestones") else ""
+        print(f"  {name:<28} {b['thread']}  {b['path']}  {b.get('cost', '?')}{ms}{on}")
+    return 0
+
+
+def cmd_store(args) -> int:
+    p = _project(args)
+    rec = _session(p)
+    tid = (args.thread or (rec or {}).get("thread") or "").upper()
+    if not tid:
+        return _fail("name a thread (rms store T<NN>); this session holds none")
+    print(inventory.view_text(p, tid))
+    return 0
+
+
+def cmd_scan(args) -> int:
+    p = _project(args)
+    r = inventory.scan(p)
+    if not any(r.values()):
+        print("records and disk agree")
+        return 0
+    if r["unrecorded"]:
+        print("Builds on disk that no thread recorded:")
+        for u in r["unrecorded"]:
+            print(f"  {u['path']}  {inventory.human(u['bytes'] or 0)}  written {u['written'][:16]}")
+            print(f"      thread: {u['thread'] or '?'} ({u['why']}); source: {u['source'] or '?'}"
+                  + (f"; recipe guess: {u['recipe']}" if u["recipe"] else ""))
+    if r["missing"]:
+        print("Recorded builds not on disk (and not archived):")
+        for b in r["missing"]:
+            print(f"  {b['name']}  {b['path']}  ({b['thread']})")
+    if r["unknown_data"]:
+        print("Data folders of no known thread:")
+        for d in r["unknown_data"]:
+            print(f"  {d['path']}  {inventory.human(d['bytes'] or 0)}")
+    return 1
+
+
+def cmd_env(args) -> int:
+    p = _project(args)
+    rec = _session(p)
+    tid = (args.thread or (rec or {}).get("thread") or "").upper()
+    if not tid:
+        return _fail("name a thread (rms env T<NN>)")
+    print("\n".join(inventory.env_lines(p, tid)) or f"# {tid}: no builds with an env name")
+    return 0
+
+
+def cmd_gc(args) -> int:
+    p = _project(args)
+    rows = inventory.gc(p, weeks=args.weeks if args.weeks is not None else p.gc_weeks)
+    if not rows:
+        print("nothing to clean up")
+        return 0
+    total = 0
+    for r in rows:
+        total += r["bytes"]
+        print(f"  {r['kind']:<5} {r['name']:<28} {inventory.human(r['bytes']):>9}  {r['path']}  -> {r['action']}")
+    print(f"total {inventory.human(total)}. RMS removes nothing; archive with `rms archive`, "
+          f"then the owner removes.")
+    return 0
 
 
 def cmd_log(args) -> int:
@@ -383,14 +499,50 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("thread")
     s.set_defaults(fn=cmd_reopen)
 
-    s = sub.add_parser("archive", help="pack a done thread's data into the archive (sha256)")
-    s.add_argument("thread")
+    s = sub.add_parser("archive", help="pack a done thread's data, or a build (sha256)")
+    s.add_argument("thread", nargs="?")
+    s.add_argument("--exp", help="only this experiment's folder")
+    s.add_argument("--build", help="a recorded build, by name")
     s.set_defaults(fn=cmd_archive)
 
-    s = sub.add_parser("restore", help="unpack a thread's archived data (sha256 checked)")
-    s.add_argument("thread")
+    s = sub.add_parser("restore", help="unpack archived data or a build (sha256 checked)")
+    s.add_argument("thread", nargs="?")
+    s.add_argument("--exp")
+    s.add_argument("--build")
     s.add_argument("--file", help="a specific archive file (default: the latest)")
     s.set_defaults(fn=cmd_restore)
+
+    s = sub.add_parser("build", help="record builds for this session's thread")
+    s.add_argument("action", choices=["add", "use", "unuse", "ignore"])
+    s.add_argument("path", help="add/ignore: the build folder; use/unuse: the build's name")
+    s.add_argument("--name", help="default: <tool>/<folder> under the builds folder")
+    s.add_argument("--tool")
+    s.add_argument("--source", help="source repo it was built from, e.g. src/fastlib (default: guessed)")
+    s.add_argument("--recipe", help="the command(s) that built it")
+    s.add_argument("--cost", choices=["cheap", "expensive"], default="cheap",
+                   help="expensive = hours or sudo to rebuild (archived before removal)")
+    s.add_argument("--env", help="variable name for `rms env`, e.g. LLVM_BUILD")
+    s.add_argument("--shared", action="store_true", help="meant for other threads to use")
+    s.add_argument("--note")
+    s.set_defaults(fn=cmd_build)
+
+    s = sub.add_parser("builds", help="every recorded build")
+    s.set_defaults(fn=cmd_builds)
+
+    s = sub.add_parser("store", help="a thread's builds, the builds it uses, its data")
+    s.add_argument("thread", nargs="?")
+    s.set_defaults(fn=cmd_store)
+
+    s = sub.add_parser("scan", help="find builds/data on disk that the records miss")
+    s.set_defaults(fn=cmd_scan)
+
+    s = sub.add_parser("env", help="shell exports for a thread's builds")
+    s.add_argument("thread", nargs="?")
+    s.set_defaults(fn=cmd_env)
+
+    s = sub.add_parser("gc", help="list what could be archived/removed (removes nothing)")
+    s.add_argument("--weeks", type=int, help="keep what changed within this many weeks")
+    s.set_defaults(fn=cmd_gc)
 
     s = sub.add_parser("status", help="a thread's State and How to resume")
     s.add_argument("thread", nargs="?")

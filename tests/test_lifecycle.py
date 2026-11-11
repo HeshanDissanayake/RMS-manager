@@ -19,69 +19,10 @@ from rms import claims, cli, index, lifecycle, sessions
 from rms.config import load
 from rms.git import git, pointer
 
-HERE = Path(__file__).resolve().parent.parent
-TMP = HERE / ".tmp"
-GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@x", "GIT_COMMITTER_NAME": "t",
-           "GIT_COMMITTER_EMAIL": "t@x"}
+from tests.sandbox_case import HERE, SandboxCase  # noqa: E402
 
 
-class Lifecycle(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        TMP.mkdir(exist_ok=True)
-        cls.dir = Path(tempfile.mkdtemp(dir=TMP))
-        cls._env = dict(os.environ)
-        os.environ.update(GIT_ENV)
-        os.environ.pop("RMS_PROJECT", None)
-        subprocess.run([str(HERE / "sandbox/reset-demo.sh")], check=True, capture_output=True,
-                       env={**os.environ, "RMS_DEMO_DIR": str(cls.dir / "demo")})
-        cls.root = cls.dir / "demo" / "root"
-        cls.p = load(cls.root)
-        cls.procs = []
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        for pr in cls.procs:
-            pr.kill()
-            pr.wait()
-        os.environ.clear()
-        os.environ.update(cls._env)
-        shutil.rmtree(cls.dir)
-
-    # helpers
-    def session(self, sid: str) -> None:
-        pr = subprocess.Popen(["sleep", "600"])
-        self.procs.append(pr)
-        sessions.register(self.p, sid, str(self.root), pr.pid)
-
-    def rms(self, sid: str | None, *args: str) -> tuple[int, str]:
-        old = os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
-        if sid:
-            os.environ["CLAUDE_CODE_SESSION_ID"] = sid
-        out, err = io.StringIO(), io.StringIO()
-        cwd = os.getcwd()
-        os.chdir(self.root)
-        try:
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                rc = cli.main(list(args))
-        finally:
-            os.chdir(cwd)
-            os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
-            if old:
-                os.environ["CLAUDE_CODE_SESSION_ID"] = old
-        return rc, out.getvalue() + err.getvalue()
-
-    def note(self, tid: str, state: str) -> None:
-        f = lifecycle.thread_dir(self.p, tid) / "THREAD.md"
-        text = f.read_text()
-        import re
-        text = re.sub(r"## State as of .*?(?=\n## )", f"## State as of {lifecycle.today()}\n\n{state}\n",
-                      text, flags=re.S)
-        f.write_text(text)
-
-    def index_row(self, tid: str) -> dict:
-        return index.get(self.p.index_file.read_text(), tid)
-
+class Lifecycle(SandboxCase):
     # the story, in order
     def test_lifecycle(self):
         root, p = self.root, self.p
@@ -205,10 +146,7 @@ class Lifecycle(unittest.TestCase):
         rc, out = self.rms(None, "reopen", "T04")
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.index_row("T04")["status"], "paused")
-        rc, out = self.rms(None, "archive", "T03")
-        self.assertEqual(rc, 1)  # T03 is done but has no data
-        (p.data_dir / "T03").mkdir(parents=True)
-        (p.data_dir / "T03" / "run.log").write_text("result 42\n")
+        (p.data_dir / "T03" / "run.log").write_text("result 42\n")  # sandbox has T03 data
         rc, out = self.rms(None, "archive", "T03")
         self.assertEqual(rc, 0, out)
         rc, out = self.rms(None, "restore", "T03")

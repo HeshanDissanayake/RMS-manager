@@ -37,6 +37,10 @@ DEFAULTS: dict = {
     "data_dir": "store/data",
     # Cold storage for archived thread data (.tar.gz + catalog.csv with sha256).
     "archive_dir": "store/archive",
+    # Builds: <builds_dir>/<tool>/<name>/ (a thread's own: <tool>/T<NN>-<name>).
+    "builds_dir": "store/builds",
+    # Clean-up: builds/data changed within this many weeks are kept.
+    "gc_weeks": 4,
 }
 
 
@@ -99,6 +103,14 @@ class Project:
     def archive_dir(self) -> Path:
         return Path(os.path.expanduser(self._get("archive_dir"))) if self._get(
             "archive_dir").startswith(("/", "~")) else self.root / self._get("archive_dir")
+
+    @property
+    def builds_dir(self) -> Path:
+        return self.root / self._get("builds_dir")
+
+    @property
+    def gc_weeks(self) -> int:
+        return int(self._get("gc_weeks"))
 
     @property
     def shared_writable(self) -> list[str]:
