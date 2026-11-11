@@ -75,12 +75,16 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 3. Read-only API server.
 4. RMS-web dashboard; then actions.
 
-## 10. Open questions
+## 10. Decisions (owner, 2026-11-11)
 
-- Language: Python 3.13 (as LLVM-regsw's tools, standard library first) is the default proposal.
-- Can Claude Code hooks rewrite a command (for `tee` into consoles)? Verify before stage 1.
-- Config format for a project (YAML / TOML / JSON).
-- Name: "RMS" as given by the owner (meaning to be written down).
-- Rule R51 (consoles clearing) for LLVM-regsw: owner to approve.
-- How the manager is installed/used by LLVM-regsw (path dependency, pip install from this repo, …) without breaking "nothing system-wide" (R33).
-- Private repository / remote: none yet; nothing pushed.
+- **Language:** Python 3.13.
+- **Config format:** JSON.
+- **Name:** RMS = Research Manager.
+- **Remote:** `github` → `HeshanDissanayake/RMS-manager` (set up by the owner). Sessions commit; the owner pushes.
+- **Way of working:** step by step, not the whole plan at once. First step: how a Claude session starting in the project becomes known to RMS and gets the owner's permission to work on a thread, and how it manages that thread. A **terminal UI** comes before the web UI so the owner can run the app himself.
+
+## 11. Open questions
+
+- Can Claude Code hooks rewrite a command (for `tee` into consoles)? Later.
+- Rule R51 (consoles clearing) for LLVM-regsw: needs the owner's approval.
+- How the manager is installed/used by LLVM-regsw (path dependency, pip install from this repo, …) without breaking "nothing system-wide" (R33). Later.
