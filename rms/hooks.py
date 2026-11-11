@@ -69,13 +69,20 @@ def context_text(project: Project, rec: dict, on_path: bool = True) -> str:
     elif not rec.get("side"):
         lines += [
             "This session holds NO thread yet, so RMS blocks file edits and commands that "
-            "change anything. Before working:",
-            "1. Ask the owner which thread to work on (AskUserQuestion; options = the threads "
-            "below that are not done, free ones first).",
-            f"2. Run `{rms} claim <ID>`. RMS refuses a thread another live session holds; "
-            "tell the owner who holds it. A stale claim may be taken over only after the "
-            f"owner says yes: `{rms} claim <ID> --take-over`.",
-            f"3. Read what `{rms} claim` prints (the thread's State and How to resume).",
+            "change anything.",
+            "FIRST THING, on the owner's first message, whatever it says:",
+            f"- If the message names a thread (e.g. \"T01\", \"work on T01\"): run `{rms} claim <ID>` "
+            "at once, no question.",
+            "- Otherwise, before anything else, ask with the AskUserQuestion tool: question "
+            "\"Which thread?\", header \"Thread\", one option per thread below that is free or "
+            "stale and not done (label \"T01 fast sort\", description = its status), free ones "
+            "first, at most 4 (the owner can type any other ID under Other). Then run "
+            f"`{rms} claim <ID>` for the answer.",
+            f"- If the claim is refused because a live session holds the thread, say who holds it "
+            "and ask again. A stale claim: ask the owner; only with their yes run "
+            f"`{rms} claim <ID> --take-over`.",
+            f"- Then read what `{rms} claim` printed (the thread's State and How to resume) and "
+            "continue with the owner's request.",
         ]
     lines += ["", "Threads:"]
     lines += thread_lines(project)
@@ -171,8 +178,22 @@ def session_start(project: Project, data: dict) -> dict:
         with open(env_file, "a", encoding="utf-8") as f:
             f.write(f'export PATH="{bin_dir}:$PATH"\n')
             f.write(f'export RMS_PROJECT="{project.root}"\n')
-    return {"hookSpecificOutput": {"hookEventName": "SessionStart",
+    return {"systemMessage": banner(project, rec),
+            "hookSpecificOutput": {"hookEventName": "SessionStart",
                                    "additionalContext": context_text(project, rec, on_path)}}
+
+
+def banner(project: Project, rec: dict) -> str:
+    """What the owner sees in the terminal as the session opens."""
+    head = f"RMS · {project.name} · session {rec['short']}"
+    if rec.get("thread"):
+        return f"{head} · holds {rec['thread']}"
+    if rec.get("side"):
+        return f"{head} · side folder side/{rec['side']}/"
+    lines = [f"{head} · no thread yet. Threads:"]
+    lines += thread_lines(project)
+    lines.append("Type a thread ID (e.g. T01), or anything and Claude will ask.")
+    return "\n".join(lines)
 
 
 def pre_tool_use(project: Project, data: dict) -> dict | None:

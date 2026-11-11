@@ -127,6 +127,9 @@ class TestHooks(Fixture):
         ctx = out["hookSpecificOutput"]["additionalContext"]
         self.assertIn("S-CAFE", ctx)
         self.assertIn("holds NO thread", ctx)
+        self.assertIn("AskUserQuestion", ctx)
+        self.assertIn("no thread yet", out["systemMessage"])
+        self.assertIn("T01  fast sort", out["systemMessage"])
         self.assertIn("T01  fast sort", ctx)
         rec = sessions.get(self.p, "cafe-1")
         self.assertEqual(rec["pid"], self.live.pid)
