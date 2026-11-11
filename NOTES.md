@@ -99,7 +99,9 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 
 - **Each thread has its own branch** in the project's root repo (LLVM-regsw = "the root"). RMS makes the owner's existing method (LLVM-regsw `threads/README.md`) formal and deterministic.
 - **Tested in the sandbox only:** the template stays tracked at `sandbox/demo-project/`; a reset script builds a real git repo from it at `sandbox/demo/` (ignored by this repo), so it can be rebuilt at any time.
-- Still to decide: submodules now or later, which commands first, who writes State / How to resume.
+- **Submodules now** (owner): source repos are submodules of the root (`update = none`: record only). Sandbox: `sandbox/reset-demo.sh` builds `sandbox/demo/origins/{fastlib,simulator}.git` and `sandbox/demo/root` (submodules in `src/`, branches `thread/T01..T03`, T00 = `main`).
+- **Handover** (owner): RMS does not write the note. It marks the handover as due and pushes Claude to do it; Claude writes the handover note in the thread's folder (`threads/T<NN>-*/`).
+- Still to decide: which commands first; the handover note's form (a separate file or THREAD.md's State / How to resume).
 
 ## 11. Open questions
 
