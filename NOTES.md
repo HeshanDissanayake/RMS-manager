@@ -95,6 +95,12 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - Putting RMS on a project: `rms adopt`, `rms doctor`, hooks merged (never replacing other hooks); written up in `docs/adopting.md`, the why in `docs/how-it-works.md`.
 - Open: Bash commands are not checked once a thread is held; a session ending releases its claim (no handover check yet); connecting LLVM-regsw (hooks in its `.claude/settings.json`, `rms.json`) is the owner's call.
 
+## 10b. Thread lifecycle (next step; owner 2026-11-11)
+
+- **Each thread has its own branch** in the project's root repo (LLVM-regsw = "the root"). RMS makes the owner's existing method (LLVM-regsw `threads/README.md`) formal and deterministic.
+- **Tested in the sandbox only:** the template stays tracked at `sandbox/demo-project/`; a reset script builds a real git repo from it at `sandbox/demo/` (ignored by this repo), so it can be rebuilt at any time.
+- Still to decide: submodules now or later, which commands first, who writes State / How to resume.
+
 ## 11. Open questions
 
 - Can Claude Code hooks rewrite a command (for `tee` into consoles)? Later.
