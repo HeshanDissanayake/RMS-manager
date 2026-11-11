@@ -121,6 +121,16 @@ The source comes from the build files and the recipe from the logged commands.
 
 At a milestone, the thread's builds and the builds it uses are pinned (`milestones`, `milestone_uses`) and never become clean-up candidates.
 
+## A thread at a glance (`rms thread T<NN>`, the TUI's Thread tab)
+
+| part | from |
+|---|---|
+| sources | each source repo in the thread's checkout: branch (or detached = unchanged so far), commit, commits on top of main's pointer, uncommitted changes, size. Without a checkout: what the thread's branch records. T00: the root's checkouts (record only). |
+| builds | the thread's `store.json`: made (with source commit) and used, sizes |
+| experiments | `experiments/EXP-*/` in the thread's folder: id, title (`# EXP-…: title`), `**Status:**`, `summary.csv` there or not, record size, data size (`<data_dir>/T<NN>/<EXP>/`) |
+| disk | sources, builds made, builds used, data, records; total of the thread's own |
+| running now | processes started by the Bash tool of the session holding the thread (Claude's own helpers such as MCP servers are not counted), and any process whose working folder is in the thread's checkout, data or builds. Shown with the command as typed. |
+
 ## Warnings (for the owner)
 
 RMS never stops work over a mismatch. It notes it as a **warning** in `store/rms/warnings.json`, at handover and close (that thread's finds) and at `rms scan` (everything).

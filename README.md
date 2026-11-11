@@ -42,7 +42,7 @@ claude                                                    # terminal 2: a sessio
 claude                                                    # terminal 3: a second session; try the same thread
 ```
 
-In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show ended sessions, `q` quit.
+In the TUI: arrows/tab to move, `enter` details, `t` open the selected thread in the **Thread** tab (sources and their state, builds, experiments, disk use, running processes; `r` re-measures), `x` release a claim, `c` approve a close, `d`/`v` settle a warning, `e` show ended sessions, `q` quit.
 
 ### Commands
 
@@ -63,6 +63,7 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 | `rms close --milestone\|--merge-into T<P>\|--no-merge -m "…"` | close the thread: milestone M<N> (tags), merge point, or nothing |
 | `rms reopen T<NN>` · `rms archive T<NN>` · `rms restore T<NN>` | reopen a done thread; pack/unpack its data (sha256) |
 | `rms build add\|use\|unuse\|ignore …` | record what the thread built / uses (RMS fills in source commits) |
+| `rms thread [T<NN>] [--json]` | all of a thread: sources and their state, builds, experiments, disk use, processes running for it (the TUI's Thread tab) |
 | `rms store [T<NN>]` · `rms builds` · `rms env [T<NN>]` | a thread's builds, uses and data; all builds; shell exports |
 | `rms scan` · `rms gc` | find unrecorded builds and data (with guesses; they become warnings); list clean-up candidates (removes nothing) |
 | `rms warnings [dismiss\|resolve <id>]` | mismatches for the owner to settle (owner only); also a TUI pane |
@@ -89,7 +90,7 @@ RMS-manager/
 ├── docs/                   how-it-works.md, adopting.md
 ├── mods/rms-thread/        Claude Code mod: thread picker at start, thread band above the prompt
 ├── pyproject.toml          package `rms`, command `rms`
-├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, inventory, warns, hooks, setup, cli, tui
+├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, inventory, warns, threadinfo, hooks, setup, cli, tui
 ├── tests/                  unittest (sessions, claims, hooks, TUI)
 ├── sandbox/demo-project/   template of the demo project (rms.json, threads/, side/)
 └── sandbox/reset-demo.sh   builds sandbox/demo/root: a git root with source submodules (not in git)

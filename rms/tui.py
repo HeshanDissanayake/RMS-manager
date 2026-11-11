@@ -1,8 +1,10 @@
-"""The terminal UI: threads, sessions and events, live.
+"""The terminal UI: threads, sessions, warnings and events, live; and a Thread tab.
 
 Run: ``rms tui`` (from inside the project, or with --project).
-It only reads RMS's files (refreshed every second); its one action is the
-owner releasing a claim.
+Overview tab: refreshed every second. Thread tab (t on a thread, or pick it
+there): its sources and their state, builds, experiments, disk use and the
+processes running for it now (disk use is computed in the background; r
+recomputes).
 """
 
 from __future__ import annotations
@@ -10,11 +12,15 @@ from __future__ import annotations
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual import work
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Header, Label, RichLog, Static
+from textual.widgets import (Button, DataTable, Footer, Header, Label, RichLog, Select, Static,
+                             TabbedContent, TabPane)
 
-from rms import claims, sessions, store, threads, warns
+from rms import claims, inventory, sessions, store, threadinfo, threads, warns
+
+H = inventory.human
 from rms.config import Project
 
 STATE_STYLE = {"free": "dim", "live": "bold green", "stale": "bold yellow",
@@ -72,11 +78,33 @@ class TextScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
+THREAD_SECTIONS = [("sources", "Sources (repos in the thread's checkout)"),
+                   ("builds", "Builds (made by the thread, and used)"),
+                   ("experiments", "Experiments"),
+                   ("disk", "Disk use"),
+                   ("processes", "Running now (refreshed every second)")]
+THREAD_COLUMNS = {
+    "sources": ("Repo", "Branch", "Commit", "State", "Size"),
+    "builds": ("", "Build", "Path", "Source", "Cost", "Size"),
+    "experiments": ("ID", "Status", "Title", "Summary", "Record", "Data"),
+    "disk": ("What", "Size"),
+    "processes": ("PID", "Running", "Why", "Folder", "Command"),
+}
+
+
 class RMSApp(App):
     TITLE = "RMS"
     CSS = """
     Screen { layout: vertical; }
+    TabbedContent { height: 1fr; }
+    TabPane { height: 1fr; padding: 0; }
+    #overview-body { height: 1fr; }
     #top { height: 1fr; }
+    #thread-bar { height: 3; }
+    #thread-pick { width: 52; }
+    #thread-head { padding: 1 2; color: $text-muted; }
+    #thread-body DataTable { height: auto; max-height: 14; }
+    #thread-body .pane { height: auto; }
     #threads-pane { width: 3fr; }
     #sessions-pane { width: 2fr; }
     #events-pane { height: 10; }
@@ -103,6 +131,7 @@ class RMSApp(App):
         Binding("v", "settle('resolved')", "Warning resolved", show=False),
         Binding("enter", "details", "Details", show=True),
         Binding("e", "toggle_ended", "Show ended"),
+        Binding("t", "open_thread", "Thread tab"),
         Binding("r", "refresh", "Refresh"),
     ]
 
@@ -118,19 +147,31 @@ class RMSApp(App):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Static(id="summary")
-        with Horizontal(id="top"):
-            with Vertical(id="threads-pane", classes="pane"):
-                yield Label("Threads", classes="pane-title")
-                yield DataTable(id="threads", cursor_type="row", zebra_stripes=True)
-            with Vertical(id="sessions-pane", classes="pane"):
-                yield Label("Sessions", classes="pane-title")
-                yield DataTable(id="sessions", cursor_type="row", zebra_stripes=True)
-        with Vertical(id="warnings-pane", classes="pane"):
-            yield Label("Warnings (for you: d dismiss, v resolved)", classes="pane-title")
-            yield DataTable(id="warnings", cursor_type="row", zebra_stripes=True)
-        with Vertical(id="events-pane", classes="pane"):
-            yield Label("Events", classes="pane-title")
-            yield RichLog(id="events", markup=False, wrap=False)
+        with TabbedContent(initial="overview"):
+            with TabPane("Overview", id="overview"):
+                with Vertical(id="overview-body"):
+                    with Horizontal(id="top"):
+                        with Vertical(id="threads-pane", classes="pane"):
+                            yield Label("Threads (t: open in the Thread tab)", classes="pane-title")
+                            yield DataTable(id="threads", cursor_type="row", zebra_stripes=True)
+                        with Vertical(id="sessions-pane", classes="pane"):
+                            yield Label("Sessions", classes="pane-title")
+                            yield DataTable(id="sessions", cursor_type="row", zebra_stripes=True)
+                    with Vertical(id="warnings-pane", classes="pane"):
+                        yield Label("Warnings (for you: d dismiss, v resolved)", classes="pane-title")
+                        yield DataTable(id="warnings", cursor_type="row", zebra_stripes=True)
+                    with Vertical(id="events-pane", classes="pane"):
+                        yield Label("Events", classes="pane-title")
+                        yield RichLog(id="events", markup=False, wrap=False)
+            with TabPane("Thread", id="thread-tab"):
+                with Horizontal(id="thread-bar"):
+                    yield Select([], id="thread-pick", prompt="Pick a thread", allow_blank=True)
+                    yield Static("", id="thread-head")
+                with VerticalScroll(id="thread-body"):
+                    for key, title in THREAD_SECTIONS:
+                        with Vertical(classes="pane"):
+                            yield Label(title, classes="pane-title")
+                            yield DataTable(id=f"t-{key}", cursor_type="row", zebra_stripes=True)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -141,6 +182,11 @@ class RMSApp(App):
             "Session", "State", "Thread", "Where", "Started", "Last seen")
         self.query_one("#warnings", DataTable).add_columns("ID", "Thread", "Since", "Warning")
         self.warning_ids: list[str] = []
+        for key, cols in THREAD_COLUMNS.items():
+            self.query_one(f"#t-{key}", DataTable).add_columns(*cols)
+        self.thread_tid: str | None = None
+        self.query_one("#thread-pick", Select).set_options(
+            [(f"{t.id}  {t.name}", t.id) for t in threads.discover(self.project).values()])
         self.refresh_all()
         self.set_interval(1.0, self.refresh_all)
         self.query_one("#threads", DataTable).focus()
@@ -210,6 +256,9 @@ class RMSApp(App):
             summary += f" · {len(self.warning_ids)} open warning{'s' if len(self.warning_ids) > 1 else ''}"
         self.query_one("#summary", Static).update(summary)
 
+        if self.thread_tid and self.query_one(TabbedContent).active == "thread-tab":
+            self.fill_processes(threadinfo.processes(p, self.thread_tid))
+
         log = self.query_one("#events", RichLog)
         events = store.read_events(p.state_dir)
         if len(events) < self.events_seen:
@@ -242,6 +291,92 @@ class RMSApp(App):
 
     def action_refresh(self) -> None:
         self.refresh_all()
+        if self.thread_tid and self.query_one(TabbedContent).active == "thread-tab":
+            self.load_thread(self.thread_tid)
+
+    # --- the Thread tab ---------------------------------------------------------------
+
+    def action_open_thread(self) -> None:
+        tid = self._selected_thread()
+        if tid:
+            self.show_thread(tid)
+
+    def show_thread(self, tid: str) -> None:
+        self.query_one(TabbedContent).active = "thread-tab"
+        pick = self.query_one("#thread-pick", Select)
+        if pick.value != tid:
+            pick.value = tid  # raises Select.Changed, which loads it
+        else:
+            self.load_thread(tid)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "thread-pick" and isinstance(event.value, str):
+            self.load_thread(event.value)
+
+    def load_thread(self, tid: str) -> None:
+        self.thread_tid = tid
+        quick = threadinfo.collect(self.project, tid, sizes=False)
+        self.fill_thread(quick)  # at once, sizes still "…"
+        self.measure_thread(tid)
+
+    @work(thread=True, exclusive=True, group="thread-sizes")
+    def measure_thread(self, tid: str) -> None:
+        data = threadinfo.collect(self.project, tid, sizes=True)
+        if self.thread_tid == tid:
+            self.call_from_thread(self.fill_thread, data)
+
+    def fill_thread(self, d: dict) -> None:
+        def size(n):
+            return "…" if n is None else H(n)
+
+        head = (f"{d['thread']}  {d['name']}  [{d['status']}]   claim: {d['claim']}"
+                + (f" by {d['held_by']}" if d["held_by"] else "")
+                + f"   branch {d['branch']}   checkout {d['checkout'] or '(none yet)'}")
+        self.query_one("#thread-head", Static).update(head)
+
+        t = self.query_one("#t-sources", DataTable)
+        t.clear()
+        for r in d["sources"]:
+            style = "yellow" if r["dirty"] else "green" if r["ahead"] else ""
+            t.add_row(Text(r["repo"], style="bold"), r["branch"] or "detached",
+                      (r["commit"] or "")[:9], Text(r["state"], style=style), size(r["bytes"]))
+
+        t = self.query_one("#t-builds", DataTable)
+        t.clear()
+        for kind, rows in (("made", d["builds"]), ("used", d["uses"])):
+            for b in rows:
+                src = b.get("source") or {}
+                t.add_row(kind, Text(b["name"], style="bold"), b.get("path", "?"),
+                          f"{src.get('repo')}@{(src.get('commit') or '')[:9]}" if src else "?",
+                          b.get("cost", "?"),
+                          size(b.get("bytes")) if b.get("exists", True) else Text("missing", style="red"))
+
+        t = self.query_one("#t-experiments", DataTable)
+        t.clear()
+        for e in d["experiments"]:
+            st = {"done": "green", "running": "yellow", "planned": "dim"}.get(e["status"], "")
+            t.add_row(Text(e["id"], style="bold"), Text(e["status"], style=st), e["title"],
+                      "yes" if e["has_summary"] else "-", size(e["record_bytes"]),
+                      size(e["data_bytes"]) if e["data"] else "-")
+
+        t = self.query_one("#t-disk", DataTable)
+        t.clear()
+        if d["disk"] is None:
+            t.add_row("measuring …", "")
+        else:
+            for k, v in d["disk"].items():
+                t.add_row(Text(k, style="bold" if k.startswith("total") else ""), H(v))
+
+        self.fill_processes(d["processes"])
+
+    def fill_processes(self, procs: list[dict]) -> None:
+        t = self.query_one("#t-processes", DataTable)
+        t.clear()
+        for r in procs:
+            mins, secs = divmod(r["seconds"], 60)
+            t.add_row(str(r["pid"]), f"{mins}:{secs:02d}", r["why"], r["cwd"], r["cmd"][:100])
+        if not procs:
+            t.add_row("", "", "", "", Text("nothing running for this thread", style="dim"))
 
     def action_toggle_ended(self) -> None:
         self.show_ended = not self.show_ended

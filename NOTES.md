@@ -116,6 +116,10 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 
 - In an RMS project, a session with no thread gets a picker at start; the pick runs `rms claim` for this session. A band above the prompt shows the held thread (number, name, checkout, handover due); `/thread` picks or shows. Source: `mods/rms-thread/`; RMS's new UserPromptSubmit hook tells Claude about a thread picked outside its own commands.
 
+## 10e. Thread tab (owner 2026-11-11)
+
+- TUI Thread tab and `rms thread T<NN>`: sources and their state, builds, experiments (LLVM-regsw layout), disk use, processes running for the thread (session's Bash commands, anything working in its folders). Built and tested 2026-11-11.
+
 ## 11. Open questions
 
 - Can Claude Code hooks rewrite a command (for `tee` into consoles)? Later.

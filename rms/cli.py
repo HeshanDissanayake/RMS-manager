@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threads, warns
+from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threadinfo, threads, warns
 from rms.git import GitError
 from rms.config import CONFIG_NAME, Project, find_project, init_project, load
 
@@ -393,6 +393,19 @@ def cmd_scan(args) -> int:
     return 1
 
 
+def cmd_thread(args) -> int:
+    p = _project(args)
+    rec = _session(p)
+    tid = (args.thread or (rec or {}).get("thread") or "").upper()
+    if not tid or tid not in threads.discover(p):
+        return _fail("name a thread: rms thread T<NN>")
+    if args.json:
+        print(json.dumps(threadinfo.collect(p, tid)))
+    else:
+        print(threadinfo.text(p, tid))
+    return 0
+
+
 def cmd_env(args) -> int:
     p = _project(args)
     rec = _session(p)
@@ -612,6 +625,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--thread")
     s.add_argument("--note")
     s.set_defaults(fn=cmd_warnings)
+
+    s = sub.add_parser("thread", help="all of a thread: sources, builds, experiments, disk, running processes")
+    s.add_argument("thread", nargs="?")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_thread)
 
     s = sub.add_parser("scan", help="find builds/data on disk that the records miss")
     s.set_defaults(fn=cmd_scan)
