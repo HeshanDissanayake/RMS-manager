@@ -223,6 +223,7 @@ def pre_tool_use(project: Project, data: dict) -> dict | None:
             return None
         path = Path(target) if os.path.isabs(target) else Path(cwd) / target
         if claims.may_write(project, rec, path):
+            _branch_source_on_write(project, rec, path)
             return None
         if areas:
             where = ", ".join(project.rel(a) + "/" for a in areas)
@@ -249,6 +250,17 @@ def pre_tool_use(project: Project, data: dict) -> dict | None:
         return _deny(no_thread + " Read-only commands (ls, cat, grep, git log, ...) "
                      "and `rms` commands still run.")
     return None
+
+
+def _branch_source_on_write(project: Project, rec: dict, path: Path) -> None:
+    """First edit in a source repo of the thread: give that repo the thread's branch."""
+    tid = rec.get("thread")
+    if not tid:
+        return
+    from rms import lifecycle
+    src = lifecycle.source_of(project, tid, path)
+    if src:
+        lifecycle.ensure_source_branch(project, tid, src)
 
 
 def session_end(project: Project, data: dict) -> None:

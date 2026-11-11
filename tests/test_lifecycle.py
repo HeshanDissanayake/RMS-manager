@@ -93,7 +93,9 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         wt = lifecycle.worktree(p, "T01")
         self.assertEqual(git(wt, "branch", "--show-current"), "thread/T01")
-        self.assertEqual(git(wt / "src/fastlib", "branch", "--show-current"), "thread/T01")
+        # sources start without a branch (unchanged so far)
+        self.assertEqual(git(wt / "src/fastlib", "branch", "--show-current"), "")
+        self.assertFalse(git(root / "src/fastlib", "branch", "--list", "thread/T01"))
         from rms.config import find_project
         self.assertEqual(find_project(wt / "src/fastlib").root, root)  # checkout -> the root
         self.assertEqual(find_project(wt).root, root)
@@ -103,9 +105,17 @@ class Lifecycle(unittest.TestCase):
         self.assertFalse(claims.may_write(p, rec, root / "threads/T01-fast-sort/x.md"))  # main
         self.assertFalse(claims.may_write(p, rec, wt / "threads/INDEX.md"))
 
-        # work in a source repo (committed) and an uncommitted one
-        (wt / "src/fastlib/fastlib.py").write_text("def version():\n    return 'fast 2'\n")
+        # first edit in a source repo (through the hook) gives it the branch
+        from rms import hooks
+        target = wt / "src/fastlib/fastlib.py"
+        with contextlib.redirect_stdout(io.StringIO()):
+            hooks.run("pre-tool-use", io.StringIO(__import__("json").dumps({
+                "session_id": "aaaa-1", "cwd": str(root), "tool_name": "Edit",
+                "tool_input": {"file_path": str(target)}})))
+        self.assertEqual(git(wt / "src/fastlib", "branch", "--show-current"), "thread/T01")
+        target.write_text("def version():\n    return 'fast 2'\n")
         git(wt / "src/fastlib", "commit", "-qam", "faster")
+        # a change made around the hook (shell) in another repo, left uncommitted
         (wt / "src/simulator/simulator.py").write_text("# dirty\n")
 
         # --- handover: step 1 marks it due
@@ -117,6 +127,8 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("has not changed", out)
         self.assertIn("src/simulator has uncommitted changes", out)
+        # handover gave the changed repo its branch; RMS made the branch, the commit is still needed
+        self.assertEqual(git(wt / "src/simulator", "branch", "--show-current"), "thread/T01")
         git(wt / "src/simulator", "checkout", "--", ".")
         self.note("T01", "fastlib 2 done; bench next.")
         rc, out = self.rms("aaaa-1", "handover", "-m", "fastlib 2")
@@ -130,6 +142,8 @@ class Lifecycle(unittest.TestCase):
         self.assertNotEqual(pointer(root, "thread/T01", "src/fastlib"), main_ptr)
         log = git(root, "log", "-3", "--format=%s%n%b", "main")
         self.assertIn("Thread: T01", log)
+        # simulator was reverted: its (empty) branch exists, its pointer is unchanged
+        self.assertEqual(pointer(root, "thread/T01", "src/simulator"), pointer(root, "main", "src/simulator"))
 
         # --- create: spawn T04 from T01
         rc, out = self.rms("aaaa-1", "create", "bench harness", "--from", "T01")
@@ -145,6 +159,7 @@ class Lifecycle(unittest.TestCase):
         rc, out = self.rms("bbbb-2", "claim", "T04")
         self.assertEqual(rc, 0, out)
         w4 = lifecycle.worktree(p, "T04")
+        self.assertEqual(git(w4 / "src/fastlib", "branch", "--show-current"), "")  # detached
         (w4 / "src/fastlib/bench.py").write_text("print('bench')\n")
         git(w4 / "src/fastlib", "add", "bench.py")
         git(w4 / "src/fastlib", "commit", "-qm", "bench")

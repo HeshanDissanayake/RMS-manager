@@ -142,10 +142,43 @@ def _ensure_sources(project: Project, tid: str, wt: Path) -> None:
         sha = pointer(wt, "HEAD", path)
         if dst.is_dir() and not any(dst.iterdir()):
             dst.rmdir()
-        if has_branch(src, br):
+        if has_branch(src, br):  # the thread changed this repo before
             git(src, "worktree", "add", "-q", str(dst), br)
-        else:
-            git(src, "worktree", "add", "-q", "-b", br, str(dst), sha)
+        else:  # unchanged so far: no branch until it changes (owner 2026-11-11)
+            git(src, "worktree", "add", "-q", "--detach", str(dst), sha)
+
+
+def source_of(project: Project, tid: str, path: Path) -> str | None:
+    """The submodule path (e.g. src/fastlib) a file in the thread's checkout is in."""
+    wt = worktree(project, tid).resolve()
+    path = Path(path).resolve()
+    for p in submodule_paths(wt) if wt.is_dir() else []:
+        if path.is_relative_to(wt / p):
+            return p
+    return None
+
+
+def ensure_source_branch(project: Project, tid: str, path: str) -> bool:
+    """Give a source repo in the thread's checkout the thread's branch, now that it changes.
+
+    Returns True if the branch was made here. Commits already made on the
+    detached HEAD are kept (the branch starts at HEAD).
+    """
+    repo = worktree(project, tid) / path
+    if not (repo / ".git").exists() or current_branch(repo) != "HEAD":
+        return False
+    br = project.thread_branch(tid)
+    if has_branch(repo, br):
+        raise LifecycleError(f"{path}: branch {br} exists but this checkout is detached")
+    git(repo, "switch", "-q", "-c", br)
+    store.append_event(project.state_dir, "source-branch", thread=tid, repo=path, branch=br)
+    return True
+
+
+def _source_changed(project: Project, tid: str, path: str) -> bool:
+    wt = worktree(project, tid)
+    repo = wt / path
+    return bool(dirty(repo)) or git(repo, "rev-parse", "HEAD") != pointer(wt, "HEAD", path)
 
 
 def areas(project: Project, tid: str) -> list[str]:
@@ -334,7 +367,7 @@ def handover_steps(project: Project, tid: str) -> str:
 1. Rewrite "## State as of {today()}" (heading with today's date) and "## How to resume" in full.
 2. Update "## Where things are" (repo, branch, commit of everything the thread changed or used) and "## Open items".
 3. An idea that branched off: `rms create "<name>" --from {tid}` (a new parked thread).
-4. Source repos {srcs}: commit your changes there, on branch `{project.thread_branch(tid)}`.
+4. Source repos {srcs}: commit your changes there (RMS gives a changed repo the branch `{project.thread_branch(tid)}`).
 Then run `rms handover -m "<one line: what this session did>"` again: RMS checks the note,
 commits on `{project.thread_branch(tid)}`, merges it into `{project.main_branch}` and releases the thread."""
 
@@ -374,6 +407,10 @@ def check_note(project: Project, tid: str, before: str | None = None) -> list[st
         repo = wt / p
         if not (repo / ".git").exists():
             continue
+        if current_branch(repo) == "HEAD":
+            if not _source_changed(project, tid, p):
+                continue  # unchanged: no branch needed
+            ensure_source_branch(project, tid, p)
         if current_branch(repo) != br:
             problems.append(f"{p} is on {current_branch(repo)}, not {br}")
         if dirty(repo):
@@ -521,6 +558,7 @@ def close(project: Project, rec: dict, how: str, summary: str, parent: str | Non
         for p in submodule_paths(pwt):
             child, mine = pointer(wt, "HEAD", p), pointer(pwt, "HEAD", p)
             if child and child != mine:
+                ensure_source_branch(project, parent, p)
                 rc, out = _run(pwt / p, "merge", "--no-edit", child)
                 if rc != 0:
                     _run(pwt / p, "merge", "--abort")
