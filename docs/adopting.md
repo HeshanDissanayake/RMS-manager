@@ -38,7 +38,8 @@ The folder names are defaults; `rms.json` can point elsewhere (`threads_dir`, `i
    ## RMS
    This project is managed by RMS. Every session must start in the project root. If you got no
    "RMS" note at the start of this session, you were started elsewhere: do nothing, and ask the
-   owner to restart `claude` in the project root.
+   owner to restart `claude` in the project root. Exception: a side session started in its own
+   `side/<name>/` folder is not managed by RMS; it follows the project's side-session rules.
    ```
 
 4. **Ignore the state folder in git:** add `store/` (or `store/rms/`) to the project's `.gitignore`.

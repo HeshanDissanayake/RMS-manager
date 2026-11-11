@@ -67,7 +67,7 @@ The project's `CLAUDE.md` *is* read from subfolders, so it carries a line tellin
 
 - **Before a thread is held:** Edit and Write are denied. Bash runs only `rms …` and read-only commands (`ls`, `cat`, `grep`, `git log`/`status`/`diff`, …), optionally joined by `|`, `&&` or `||` and with `2>&1`. Anything else is denied with the reason.
 - **With a thread held:** Edit and Write are allowed only inside the thread's folder (plus `shared_writable` and `extra_writable` from `rms.json`). Bash is not checked (a known limit).
-- **Side session** (its folder is in `<side_dir>/<name>/`): writes only inside that folder, and it needs no claim. Because hooks are read only in the root, a side session started *in* its side folder is not seen by RMS. This case is still open (NOTES.md).
+- **Side sessions** started in their own `side/<name>/` folder are **not managed by RMS** (owner, 2026-11-11). The hooks aren't read there, and that is intended: such a session (RMS-manager's own, for example) follows the project's side-session rules instead. If a session started in the root works in `side/<name>/`, RMS limits its writes to that folder and it needs no claim.
 - **One live session per thread:** a claim is refused while the holder's process runs. "Live" means the PID is alive and has the same start time, so a reused PID doesn't count. If the holder is gone, the claim is *stale*: `--take-over` only after the owner says yes.
 - **SessionEnd** releases the session's claim.
 - **A hook never breaks Claude Code:** on an internal error it logs `hook-error` and lets the call through.

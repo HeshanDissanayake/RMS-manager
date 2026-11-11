@@ -8,4 +8,5 @@ saying which session you are and which threads exist: follow it (ask the owner w
 ## RMS
 This project is managed by RMS. Every session must start in the project root. If you got no
 "RMS" note at the start of this session, you were started elsewhere: do nothing, and ask the
-owner to restart `claude` in the project root.
+owner to restart `claude` in the project root. Exception: a side session started in its own
+`side/<name>/` folder is not managed by RMS; it follows the project's side-session rules.
