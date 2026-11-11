@@ -8,13 +8,15 @@ const BAND = {
 
 function engine(on: any, whoami: object | null) {
   // Each hook stands for the engine beneath the mod.
-  on('command.register', () => ({ value: { command: 'thread' } }))
+  on('command.register', (_: unknown, e: { name: string }) => ({ value: { command: e.name } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('session.id', () => ({ value: 'test-session' }))
   on('env.get', () => ({ value: undefined }))
   on('clock.after', () => ({ value: { cancel() {} } }))
   on('process.run', (_: unknown, e: { argv: string[] }) =>
-    whoami && e.argv.includes('whoami')
+    e.argv.includes('ticket')
+      ? { value: { exitCode: 0, stdout: `filed RMS-004 in /rms/tickets/RMS-004.md (${e.argv.slice(1).join(' ')})\n`, stderr: '' } }
+      : whoami && e.argv.includes('whoami')
       ? { value: { exitCode: 0, stdout: JSON.stringify(whoami), stderr: '' } }
       : { value: { exitCode: 1, stdout: '', stderr: 'rms: no rms.json' } },
   )
@@ -56,4 +58,12 @@ test('outside an RMS project the band stays out of the way', async ($, on) => {
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
   await ui.unmount()
+})
+
+test('/ticket sends a ticket with its kind', async ($, on) => {
+  engine(on, HOLDS)
+  on('ui.toast', () => ({ value: undefined }))
+  await $.session.start({ cwd: '/p', surface: 'terminal', isInteractive: true })
+  const r = await $.command.run({ command: 'ticket', args: 'bug band hides at 80 columns' })
+  expect(r.text).toBe('filed RMS-004 in /rms/tickets/RMS-004.md (ticket --kind bug band hides at 80 columns)')
 })

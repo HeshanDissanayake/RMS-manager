@@ -64,6 +64,8 @@ In the TUI: arrows/tab to move, `enter` details, `t` open the selected thread in
 | `rms reopen T<NN>` · `rms archive T<NN>` · `rms restore T<NN>` | reopen a done thread; pack/unpack its data (sha256) |
 | `rms build add\|use\|unuse\|ignore …` | record what the thread built / uses (RMS fills in source commits) |
 | `rms thread [T<NN>] [--json]` | all of a thread: sources and their state, builds, experiments, disk use, processes running for it (the TUI's Thread tab) |
+| `rms ticket "…" [--kind bug\|idea\|question] [-m "…"]` | from any project (or none): a ticket for this repo, `tickets/RMS-<NNN>.md`, with project, thread, session and recent events attached. Also `/ticket` in Claude Code, `n` in the TUI. Claude sessions may file them too |
+| `rms tickets [show\|close RMS-<NNN> -m "…"] [--all]` | list, read, close tickets (closing: here in RMS-manager, not from a project session) |
 | `rms usage [T<NN>\|none] [--json]` | Claude tokens (input + output) per thread, per model with each model's share, cache counts, and the sessions (from Claude Code's transcripts; also in the Thread tab and the band; each handover commits it as the thread's `claude.json`) |
 | `rms store [T<NN>]` · `rms builds` · `rms env [T<NN>]` | a thread's builds, uses and data; all builds; shell exports |
 | `rms scan` · `rms gc` | find unrecorded builds and data (with guesses; they become warnings); list clean-up candidates (removes nothing) |

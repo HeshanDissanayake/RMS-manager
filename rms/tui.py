@@ -16,10 +16,10 @@ from textual.binding import Binding
 from textual import work
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import (Button, DataTable, Footer, Header, Label, RichLog, Select, Static,
-                             TabbedContent, TabPane)
+from textual.widgets import (Button, DataTable, Footer, Header, Input, Label, RichLog, Select,
+                             Static, TabbedContent, TabPane)
 
-from rms import claims, inventory, sessions, store, threadinfo, threads, usage, warns
+from rms import claims, inventory, sessions, store, threadinfo, threads, tickets, usage, warns
 
 H = inventory.human
 from rms.config import Project
@@ -27,7 +27,7 @@ from rms.config import Project
 STATE_STYLE = {"free": "dim", "live": "bold green", "stale": "bold yellow",
                "gone": "yellow", "ended": "dim"}
 EVENT_STYLE = {"claim": "green", "claim-refused": "red", "take-over": "yellow", "release": "cyan",
-               "denied": "red", "handover": "cyan", "handover-due": "yellow", "close": "magenta", "close-approved": "magenta", "close-refused": "red", "warning": "yellow", "warning-resolved": "green", "warning-dismissed": "dim", "create": "green", "hook-error": "bold red", "session-start": "blue",
+               "denied": "red", "handover": "cyan", "handover-due": "yellow", "close": "magenta", "close-approved": "magenta", "close-refused": "red", "warning": "yellow", "warning-resolved": "green", "warning-dismissed": "dim", "create": "green", "hook-error": "bold red", "session-start": "blue", "ticket": "magenta",
                "session-end": "dim"}
 
 
@@ -58,6 +58,31 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def action_no(self) -> None:
         self.dismiss(False)
+
+
+class TicketScreen(ModalScreen[tuple[str, str] | None]):
+    """n: a ticket for the RMS-manager repo (kind, text)."""
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, about: str) -> None:
+        super().__init__()
+        self.about = about
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Label(f"Ticket for the RMS-manager repo ({self.about})", id="question")
+            yield Select([(k, k) for k in tickets.KINDS], value="note", allow_blank=False, id="kind")
+            yield Input(placeholder="what you noticed (enter to send, esc to cancel)", id="text")
+
+    def on_mount(self) -> None:
+        self.query_one("#text", Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.value.strip():
+            self.dismiss((str(self.query_one("#kind", Select).value), event.value))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
 
 class TextScreen(ModalScreen[None]):
@@ -120,7 +145,8 @@ class RMSApp(App):
     DataTable { height: 1fr; }
     RichLog { height: 1fr; }
     #summary { height: 1; padding: 0 1; color: $text-muted; }
-    ConfirmScreen, TextScreen { align: center middle; }
+    ConfirmScreen, TextScreen, TicketScreen { align: center middle; }
+    #dialog Select, #dialog Input { margin-bottom: 1; }
     #dialog { width: 64; height: auto; border: thick $warning; background: $surface; padding: 1 2; }
     #question { width: 100%; margin-bottom: 1; }
     #buttons { height: auto; align: right middle; }
@@ -138,6 +164,7 @@ class RMSApp(App):
         Binding("e", "toggle_ended", "Show ended"),
         Binding("t", "open_thread", "Thread tab"),
         Binding("r", "refresh", "Refresh"),
+        Binding("n", "ticket", "Ticket for RMS"),
     ]
 
     def __init__(self, project: Project) -> None:
@@ -263,6 +290,9 @@ class RMSApp(App):
             summary += f" · {usage.tokens(sum(self.token_totals.values()))} Claude tokens (in + out)"
         if stale:
             summary += f" · {stale} stale claim{'s' if stale > 1 else ''} (select, x to release)"
+        open_t = len(tickets.all_tickets())
+        if open_t:
+            summary += f" · {open_t} RMS ticket{'s' if open_t > 1 else ''} open"
         if self.warning_ids:
             summary += f" · {len(self.warning_ids)} open warning{'s' if len(self.warning_ids) > 1 else ''}"
         self.query_one("#summary", Static).update(summary)
@@ -427,6 +457,23 @@ class RMSApp(App):
             t.add_row(str(r["pid"]), f"{mins}:{secs:02d}", r["why"], r["cwd"], r["cmd"][:100])
         if not procs:
             t.add_row("", "", "", "", Text("nothing running for this thread", style="dim"))
+
+    def action_ticket(self) -> None:
+        tid = self.thread_tid if self.query_one(TabbedContent).active == "thread-tab" \
+            else self._selected_thread()
+        about = f"{self.project.name}, {tid}" if tid else self.project.name
+
+        def done(r: tuple[str, str] | None) -> None:
+            if not r:
+                return
+            ctx, events = tickets.context_of(self.project, None)
+            ctx["thread"] = tid
+            path = tickets.file(r[1], kind=r[0], by="owner (tui)", context=ctx, events=events)
+            store.append_event(self.project.state_dir, "ticket", id=path.stem, by="owner (tui)")
+            self.notify(f"filed {path.stem} in {tickets.tickets_dir()}")
+            self.refresh_all()
+
+        self.push_screen(TicketScreen(about), done)
 
     def action_toggle_ended(self) -> None:
         self.show_ended = not self.show_ended

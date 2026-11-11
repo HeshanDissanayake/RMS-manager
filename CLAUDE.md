@@ -10,6 +10,8 @@ This folder is a **side session** of `~/working_dir/LLVM-regsw`. Any session sta
 
 This folder is its **own git repo** (remote `github`, the owner pushes). Commit finished work here; never push.
 
+**Tickets:** at the start of every session here, run `.venv/bin/rms tickets` and tell the owner the open ones (ID, kind, project/thread, title) in a short list. They were sent from projects that use RMS (`rms ticket`, `/ticket`, TUI `n`) into `tickets/`. Work on one only when the owner picks it; when it is done, `.venv/bin/rms tickets close RMS-<NNN> -m "<what was done, commit>"` and commit the ticket file with the fix.
+
 ## What this is
 
 RMS (Research Manager) is one program that runs a long, multi-session research project. It keeps the registry and history, runs the thread lifecycle as fixed commands, holds locks, enforces the mechanical rules, tracks jobs/consoles, and serves an API to frontends ([RMS-web](../RMS-web/)). The first user is LLVM-regsw. **Built:** sessions, thread claims, hooks, CLI, terminal UI, thread lifecycle (create, handover, close, archive), builds and data per thread (record, scan, gc; see README), Claude token use per thread and model. It runs on the sandbox (`sandbox/reset-demo.sh` → `sandbox/demo/root`), not yet on LLVM-regsw.

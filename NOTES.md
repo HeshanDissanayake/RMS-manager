@@ -128,6 +128,10 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - Each handover writes the thread's `claude.json` (committed). Earlier sessions are found where possible: by folder, else guessed from the files/claims/prompts naming a thread; otherwise "no thread" (owner: keep whatever is available).
 - Shown: TUI Thread tab (tokens by model with each model's share, thread total, sessions), Overview Tokens column, `rms usage [T<NN>]`, and the rms-thread band in Claude Code (`940k tok (opus 5.5 92%, haiku 5.5 8%)`). Built 2026-11-11.
 
+## 10g. Tickets to the RMS repo (owner 2026-11-11)
+
+- From any project (or none), the owner or a Claude session sends a ticket to this repo: `rms ticket`, `/ticket` in Claude Code, `n` in the TUI. Plain files in `tickets/`, not GitHub. Context attached automatically. A session here lists open tickets at start (CLAUDE.md); closing only here.
+
 ## 11. Open questions
 
 - Can Claude Code hooks rewrite a command (for `tee` into consoles)? Later.

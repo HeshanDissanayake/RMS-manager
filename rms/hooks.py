@@ -96,7 +96,10 @@ def context_text(project: Project, rec: dict, on_path: bool = True) -> str:
               f"`{rms} create \"<name>\" --from <ID>` (new thread), `{rms} handover`, "
               f"`{rms} close --milestone|--merge-into <ID>|--no-merge -m \"<result>\"` (needs the "
               f"owner's yes: they run `rms approve-close <ID>`; never run that yourself), "
-              f"`{rms} release`."]
+              f"`{rms} release`.",
+              f"Something wrong or missing in RMS itself (not the research)? File it for the RMS "
+              f"repo: `{rms} ticket \"<what>\" [--kind bug|idea|question] [-m \"<detail>\"]`; "
+              f"tell the owner the ticket number."]
     return "\n".join(lines)
 
 
@@ -244,6 +247,9 @@ def pre_tool_use(project: Project, data: dict) -> dict | None:
 
     if tool == "Bash" and re.search(r"\bwarnings\s+(dismiss|resolve)\b", ti.get("command", "")):
         return _deny("RMS: settling warnings is the owner's; tell the owner about them instead.")
+
+    if tool == "Bash" and re.search(r"\btickets\s+close\b", ti.get("command", "")):
+        return _deny("RMS: tickets are closed in the RMS-manager repo, not from a project.")
 
     if tool == "Bash" and re.search(r"\bapprove-close\b", ti.get("command", "")):
         store.append_event(project.state_dir, "denied", session=rec["short"], tool=tool,

@@ -7,6 +7,8 @@
 // - Right above the prompt: the held thread's number and name, and the Claude
 //   tokens the thread has used so far with each model's share (or "no thread",
 //   with a button to pick one). /thread picks or shows it again.
+// - /ticket <what you noticed>: a ticket for the RMS-manager repo (rms ticket),
+//   with this session's project, thread and recent events attached.
 //
 // All state comes from the rms CLI; the mod keeps only a copy to draw from.
 
@@ -152,6 +154,11 @@ export const register: Register = on => {
       name: 'thread',
       description: "RMS: pick this session's thread, or show the one it holds",
     })
+    await $.command.register({
+      name: 'ticket',
+      description: 'RMS: send a ticket (bug, idea, note) to the RMS-manager repo',
+      argumentHint: '[bug|idea|question] <what you noticed>',
+    })
     const started = await next(e)
     if (!e.isInteractive) return started
     const v = await refresh($)
@@ -176,6 +183,18 @@ export const register: Register = on => {
       }
     }
     return { text: await pick($) }
+  })
+
+  on('command.run', { command: 'ticket' }, async ($, e) => {
+    const words = e.args.trim().split(/\s+/).filter(Boolean)
+    const kinds = ['bug', 'idea', 'question', 'note']
+    const kind = words.length > 1 && kinds.includes(words[0]!.toLowerCase()) ? words.shift()!.toLowerCase() : 'note'
+    if (!words.length) return { text: 'Usage: /ticket [bug|idea|question] <what you noticed>' }
+    const r = await rms($, ['ticket', '--kind', kind, ...words])
+    if (!r) return { text: 'rms did not run (set RMS_BIN?).' }
+    const out = firstLine(r.exitCode === 0 ? r.stdout : r.stderr || r.stdout)
+    if (r.exitCode === 0) $.ui.toast(out)
+    return { text: out }
   })
 
   // Claude may claim, hand over or release with rms commands: re-read after each turn.

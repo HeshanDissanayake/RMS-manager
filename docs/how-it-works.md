@@ -153,6 +153,23 @@ store/rms/usage/<session>.json                   per session: tokens per thread 
 - **Sessions RMS never saw** (no hooks): any transcript in a Claude folder under the project whose working folder is in the project; marked "unregistered", counted by folder.
 - Only changed transcripts are re-read (size and time stamp). `RMS_CLAUDE_PROJECTS` overrides where the transcripts are (tests); `CLAUDE_CONFIG_DIR` is honoured.
 
+## Tickets (for the RMS-manager repo)
+
+One RMS install serves every project on the machine, and it knows its own repo (the folder above the `rms` package; `RMS_HOME` overrides). So a ticket filed anywhere lands in **this** repo:
+
+```
+LLVM-regsw, sandbox, any folder                     RMS-manager
+  rms ticket "…"  ·  /ticket …  ·  TUI n    ──►     tickets/RMS-<NNN>.md   (open)
+                                                       │ session here: rms tickets → owner picks one
+                                                       ▼
+                                                    rms tickets close RMS-<NNN> -m "…" + commit
+```
+
+- A ticket is a Markdown file: title, status, kind (bug, idea, question, note), when, who (owner or Claude session), project, thread, session, folder, RMS commit, the text, and the project's last 12 events.
+- The owner and Claude sessions can file them (sessions are told how in their start context). Filing never registers or changes a session; it adds a `ticket` event in the project.
+- Closing happens in RMS-manager: the hooks deny `rms tickets close` in a project, and the command refuses there too.
+- Plain files, not committed when filed (a project session must not commit in this repo); a session here commits them with its work. Another machine: its own clone's `tickets/`, carried by git.
+
 ## Warnings (for the owner)
 
 RMS never stops work over a mismatch. It notes it as a **warning** in `store/rms/warnings.json`, at handover and close (that thread's finds) and at `rms scan` (everything).

@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threadinfo, threads, usage, warns
+from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threadinfo, threads, tickets, usage, warns
 from rms.git import GitError
 from rms.config import CONFIG_NAME, Project, find_project, init_project, load
 
@@ -411,6 +411,54 @@ def cmd_thread(args) -> int:
     return 0
 
 
+def cmd_ticket(args) -> int:
+    """File a ticket for RMS itself (works from any project, or none)."""
+    p = load(Path(args.project)) if args.project else find_project()
+    sid = sessions.current_id()
+    rec = sessions.get(p, sid) if p and sid else None  # look only; filing registers nothing
+    by = f"Claude session {rec['short']}" if rec else (f"Claude session {sid[:8]}" if sid else "owner")
+    ctx, events = tickets.context_of(p, rec)
+    try:
+        path = tickets.file(" ".join(args.text), body=args.body or "", kind=args.kind, by=by,
+                            context=ctx, events=events)
+    except tickets.TicketError as e:
+        return _fail(str(e))
+    if p:
+        store.append_event(p.state_dir, "ticket", id=path.stem, by=by)
+    print(f"filed {path.stem} in {path}")
+    return 0
+
+
+def cmd_tickets(args) -> int:
+    if args.action in ("show", "close") and not args.id:
+        return _fail(f"which ticket? rms tickets {args.action} RMS-<NNN>")
+    try:
+        if args.action == "show":
+            print(tickets.get(args.id)["text"])
+            return 0
+        if args.action == "close":
+            if sessions.current_id() and find_project():
+                return _fail("tickets are closed in the RMS-manager repo, not from a project session")
+            t = tickets.close(args.id, args.note or "", by="Claude session" if sessions.current_id() else "owner")
+            print(f"closed {t['id']}")
+            return 0
+    except tickets.TicketError as e:
+        return _fail(str(e))
+    rows = tickets.all_tickets(include_closed=args.all)
+    if args.json:
+        print(json.dumps([{k: v for k, v in t.items() if k != "text"} for t in rows]))
+        return 0
+    if not rows:
+        print(f"no {'' if args.all else 'open '}tickets ({tickets.tickets_dir()})")
+        return 0
+    for t in rows:
+        where = " ".join(x for x in (t.get("project", "").split(" (")[0], t.get("thread")) if x)
+        print(f"{t['id']}  {t.get('status', '?'):6} {t.get('kind', ''):8} {t.get('filed', '')[:16].replace('T', ' ')}"
+              f"  {where:<18} {t['title']}")
+    print("Show one: rms tickets show RMS-<NNN>; close: rms tickets close RMS-<NNN> -m \"…\"")
+    return 0
+
+
 def cmd_usage(args) -> int:
     p = _project(args)
     usage.refresh(p)
@@ -661,6 +709,20 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("thread", nargs="?")
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_thread)
+
+    s = sub.add_parser("ticket", help="send a ticket (bug, idea, note) to the RMS-manager repo, from any project")
+    s.add_argument("text", nargs="+")
+    s.add_argument("-m", "--body", help="more detail")
+    s.add_argument("--kind", default="note", choices=tickets.KINDS)
+    s.set_defaults(fn=cmd_ticket)
+
+    s = sub.add_parser("tickets", help="RMS's tickets: list, show, close (close: in RMS-manager)")
+    s.add_argument("action", nargs="?", choices=("list", "show", "close"), default="list")
+    s.add_argument("id", nargs="?")
+    s.add_argument("-m", "--note")
+    s.add_argument("--all", action="store_true", help="closed ones too")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_tickets)
 
     s = sub.add_parser("usage", help="Claude tokens per thread and model (from the transcripts)")
     s.add_argument("thread", nargs="?", help="T<NN>, or 'none' for no thread")
