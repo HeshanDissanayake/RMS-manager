@@ -504,6 +504,8 @@ def handover(project: Project, rec: dict, summary: str | None = None) -> tuple[s
                            thread=tid, problems=len(problems))
         return "blocked", "Handover not done yet:\n" + "\n".join(f"- {p}" for p in problems)
     line = summary or _headline(project, tid) or "handover"
+    from rms import usage
+    usage.write_thread_record(project, tid)  # Claude usage so far, committed with the handover
     if is_main(project, tid):  # T00 is main: one commit there, nothing to merge
         sha = _commit_thread(project, tid, f"{tid} handover {today()}: {line}") or head(project.root)
         warn_text = _note_warnings(project, tid, by=rec["short"])

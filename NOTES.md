@@ -124,6 +124,8 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 
 - Every Claude session's details are recorded per thread: models, tokens (input, cache write, cache read, output), messages, prompts, tool calls, subagents, title, times, Claude Code's own cost. Source: Claude Code's transcripts; RMS keeps its own copy (`store/rms/usage/<session>.json`) so the numbers outlive transcript clean-up.
 - A message counts for the thread the session held then; else the thread whose checkout it worked in; else "no thread". Unregistered sessions are found by folder.
+- Headline = input + output tokens; cache counts kept as records (owner 2026-11-11).
+- Each handover writes the thread's `claude.json` (committed). Earlier sessions are found where possible: by folder, else guessed from the files/claims/prompts naming a thread; otherwise "no thread" (owner: keep whatever is available).
 - Shown: TUI Thread tab (tokens by model with each model's share, thread total, sessions), Overview Tokens column, `rms usage [T<NN>]`, and the rms-thread band in Claude Code (`940k tok (opus 5.5 92%, haiku 5.5 8%)`). Built 2026-11-11.
 
 ## 11. Open questions

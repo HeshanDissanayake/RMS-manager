@@ -83,7 +83,7 @@ THREAD_SECTIONS = [("sources", "Sources (repos in the thread's checkout)"),
                    ("builds", "Builds (made by the thread, and used)"),
                    ("experiments", "Experiments"),
                    ("disk", "Disk use"),
-                   ("claude", "Claude tokens by model"),
+                   ("claude", "Claude tokens by model (share of input + output; cache counts as records)"),
                    ("claude-sessions", "Claude sessions on this thread"),
                    ("processes", "Running now (refreshed every second)")]
 THREAD_COLUMNS = {
@@ -91,7 +91,7 @@ THREAD_COLUMNS = {
     "builds": ("", "Build", "Path", "Source", "Cost", "Size"),
     "experiments": ("ID", "Status", "Title", "Summary", "Record", "Data"),
     "disk": ("What", "Size"),
-    "claude": ("Model", "Share", "Total", "Input", "Cache write", "Cache read", "Output", "Messages"),
+    "claude": ("Model", "Share", "In + out", "Input", "Output", "Cache write", "Cache read", "Messages"),
     "claude-sessions": ("Session", "Started", "Last", "Prompts", "Tokens", "Models", "Cost", "Title"),
     "processes": ("PID", "Running", "Why", "Folder", "Command"),
 }
@@ -260,7 +260,7 @@ class RMSApp(App):
         stale = sum(claims.state(p, c)[0] == "stale" for c in cl.values())
         summary = f"{len(all_threads)} threads · {len(cl)} claimed · {live} live sessions"
         if self.token_totals:
-            summary += f" · {usage.tokens(sum(self.token_totals.values()))} Claude tokens"
+            summary += f" · {usage.tokens(sum(self.token_totals.values()))} Claude tokens (in + out)"
         if stale:
             summary += f" · {stale} stale claim{'s' if stale > 1 else ''} (select, x to release)"
         if self.warning_ids:
@@ -399,13 +399,13 @@ class RMSApp(App):
         t.clear()
         for m, c in v["models"].items():
             t.add_row(Text(usage.short_model(m), style="bold"), Text(f"{c['pct']:.1f}%", style="cyan"),
-                      T(c["total"]), T(c["input"]), T(c["cache_write"]), T(c["cache_read"]),
-                      T(c["output"]), str(c["messages"]))
+                      T(c["total"]), T(c["input"]), T(c["output"]), T(c["cache_write"]),
+                      T(c["cache_read"]), str(c["messages"]))
         if v["models"]:
             k = v["kinds"]
             cost = f"  (about ${v['cost']:.2f})" if v["cost"] is not None else ""
             t.add_row(Text("total" + cost, style="bold"), "100%", Text(T(v["total"]), style="bold"),
-                      T(k["input"]), T(k["cache_write"]), T(k["cache_read"]), T(k["output"]), "")
+                      T(k["input"]), T(k["output"]), T(k["cache_write"]), T(k["cache_read"]), "")
         else:
             t.add_row(Text("no Claude messages recorded for this thread", style="dim"), *[""] * 7)
         t = self.query_one("#t-claude-sessions", DataTable)
@@ -416,7 +416,8 @@ class RMSApp(App):
                       T(s["total"]),
                       ", ".join(f"{usage.short_model(m)} {T(n)}" for m, n in s["models"].items()),
                       f"${s['cost']:.2f}" if s["cost"] is not None else "",
-                      (s["title"] or "") + ("" if s["registered"] else "  (unregistered)"))
+                      (s["title"] or "") + ("" if s["registered"] else "  (unregistered)")
+                      + ("  (thread guessed)" if s.get("guessed") else ""))
 
     def fill_processes(self, procs: list[dict]) -> None:
         t = self.query_one("#t-processes", DataTable)

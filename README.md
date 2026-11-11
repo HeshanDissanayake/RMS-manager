@@ -64,7 +64,7 @@ In the TUI: arrows/tab to move, `enter` details, `t` open the selected thread in
 | `rms reopen T<NN>` · `rms archive T<NN>` · `rms restore T<NN>` | reopen a done thread; pack/unpack its data (sha256) |
 | `rms build add\|use\|unuse\|ignore …` | record what the thread built / uses (RMS fills in source commits) |
 | `rms thread [T<NN>] [--json]` | all of a thread: sources and their state, builds, experiments, disk use, processes running for it (the TUI's Thread tab) |
-| `rms usage [T<NN>\|none] [--json]` | Claude tokens per thread, per model with each model's share, and the sessions (from Claude Code's transcripts; also in the Thread tab and the band) |
+| `rms usage [T<NN>\|none] [--json]` | Claude tokens (input + output) per thread, per model with each model's share, cache counts, and the sessions (from Claude Code's transcripts; also in the Thread tab and the band; each handover commits it as the thread's `claude.json`) |
 | `rms store [T<NN>]` · `rms builds` · `rms env [T<NN>]` | a thread's builds, uses and data; all builds; shell exports |
 | `rms scan` · `rms gc` | find unrecorded builds and data (with guesses; they become warnings); list clean-up candidates (removes nothing) |
 | `rms warnings [dismiss\|resolve <id>]` | mismatches for the owner to settle (owner only); also a TUI pane |

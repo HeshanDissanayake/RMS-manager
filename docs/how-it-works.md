@@ -138,13 +138,16 @@ At a milestone, the thread's builds and the builds it uses are pinned (`mileston
           │  each assistant message: model + tokens
           ▼
 rms usage / TUI (every 10 s) / session end / whoami --json
-          │  which thread: held then (claim/release events) → else checkout folder → else none
+          │  which thread: held then (claim/release events) → else checkout folder
+          │                → else guessed from what it touched → else none
           ▼
 store/rms/usage/<session>.json                   per session: tokens per thread per model, title,
                                                  prompts, tools, subagents, times, cost
 ```
 
-- **Tokens:** input, cache write, cache read, output (thinking is part of output); total = all four. A message streamed over several transcript lines counts once (by its id).
+- **Tokens:** the headline is **input + output** (shares too); cache write and cache read are kept as records beside them. Thinking is part of output. A message streamed over several transcript lines counts once (by its id).
+- **Guessed thread** (sessions that held none, e.g. from before RMS): files under `threads/T<NN>-*/` or a thread's checkout that its tools touched, `rms claim T<NN>`, a prompt or menu answer naming `T<NN>`; each message takes the latest guess before it (the first guess for those before any). Marked "guessed". Side sessions are never guessed.
+- **In the thread's record:** every handover writes `threads/T<NN>-*/claude.json` (all sessions so far, tokens per model with the cache counts, cost) and commits it with the handover. Sessions only an older `claude.json` knows are kept.
 - **Background calls** (titles, summaries; often a small model) are only in the transcript's cost record: the part not in the messages counts for the thread the session spent most on.
 - **Cost:** Claude Code's own cost per model for the session, split between threads by price weights (input 1, cache write 1.25 or 2 for 1-hour cache, cache read 0.1, output 5).
 - **Sessions RMS never saw** (no hooks): any transcript in a Claude folder under the project whose working folder is in the project; marked "unregistered", counted by folder.
