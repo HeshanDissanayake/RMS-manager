@@ -17,6 +17,7 @@ from rms.config import CONFIG_NAME, DEFAULTS, load
 EVENTS = {  # Claude Code event -> rms hook name
     "SessionStart": "session-start",
     "PreToolUse": "pre-tool-use",
+    "UserPromptSubmit": "user-prompt-submit",
     "SessionEnd": "session-end",
 }
 

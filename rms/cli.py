@@ -44,6 +44,16 @@ def cmd_init(args) -> int:
 
 def cmd_threads(args) -> int:
     p = _project(args)
+    if args.json:
+        cl = claims.all_claims(p)
+        out = []
+        for t in threads.discover(p).values():
+            c = cl.get(t.id)
+            st, _ = claims.state(p, c)
+            out.append({"id": t.id, "name": t.name, "status": t.status, "done": t.done,
+                        "claim": st, "held_by": c["short"] if c else None})
+        print(json.dumps(out))
+        return 0
     print("\n".join(hooks.thread_lines(p)))
     return 0
 
@@ -63,9 +73,27 @@ def cmd_sessions(args) -> int:
     return 0
 
 
+def whoami_json(p: Project, rec: dict | None) -> dict:
+    out = {"project": p.name, "root": str(p.root), "session": None, "thread": None,
+           "thread_name": None, "side": None, "worktree": None, "handover_due": False}
+    if rec is None:
+        return out
+    out.update(session=rec["short"], side=rec.get("side"), thread=rec.get("thread"))
+    if rec.get("thread"):
+        t = threads.discover(p).get(rec["thread"])
+        c = claims.get(p, rec["thread"]) or {}
+        out.update(thread_name=t.name if t else "",
+                   worktree=p.rel(c["worktree"]) if c.get("worktree") else None,
+                   handover_due=bool(c.get("handover_due")))
+    return out
+
+
 def cmd_whoami(args) -> int:
     p = _project(args)
     rec = _session(p)
+    if args.json:
+        print(json.dumps(whoami_json(p, rec)))
+        return 0
     if rec is None:
         print(f"Not inside a Claude Code session (owner's terminal). Project: {p.name} ({p.root})")
         return 0
@@ -478,6 +506,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_init)
 
     s = sub.add_parser("threads", help="list threads and who holds them")
+    s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_threads)
 
     s = sub.add_parser("sessions", help="list Claude Code sessions")
@@ -485,6 +514,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_sessions)
 
     s = sub.add_parser("whoami", help="this session: thread, side folder, what it may write")
+    s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_whoami)
 
     s = sub.add_parser("claim", help="claim a thread for this Claude Code session")

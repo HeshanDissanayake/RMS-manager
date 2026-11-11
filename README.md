@@ -76,12 +76,17 @@ State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `e
 
 **Known limit:** once a session holds a thread, its Bash commands are not checked (only Edit/Write are confined to the thread folder). Before it holds one, only read-only commands and `rms` run.
 
+## Claude Code mod: `mods/rms-thread`
+
+In an RMS project a session that holds no thread gets a picker at start ("Which thread will this session work on?"); the band right above the prompt then shows `RMS T01 fast sort · store/worktrees/T01/` (and "handover due"). `/thread` picks or shows it. Source in `mods/rms-thread/` (tests: `claude plugin test mods/rms-thread`); the loaded copy lives in `~/.claude/dev-mods/<session>/rms-thread/` while it is developed. RMS's UserPromptSubmit hook tells Claude about a thread picked there.
+
 ## Layout
 
 ```
 RMS-manager/
 ├── README.md, NOTES.md, CLAUDE.md
 ├── docs/                   how-it-works.md, adopting.md
+├── mods/rms-thread/        Claude Code mod: thread picker at start, thread band above the prompt
 ├── pyproject.toml          package `rms`, command `rms`
 ├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, inventory, warns, hooks, setup, cli, tui
 ├── tests/                  unittest (sessions, claims, hooks, TUI)

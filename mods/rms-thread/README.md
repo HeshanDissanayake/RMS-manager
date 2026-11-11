@@ -1,0 +1,3 @@
+# rms-thread
+
+A Claude Code mod for RMS (Research Manager). When a session starts inside an RMS project (a folder with `rms.json` above it) and holds no thread, a picker asks "Which thread will this session work on?" and claims the choice for this session with `rms claim`. Right above the prompt, a band shows the held thread's number and name, its checkout, and "handover due" when RMS has asked for a handover; with no thread it offers a "Pick a thread" button. `/thread` picks again or shows the held thread. It reads everything from the `rms` CLI (`RMS_BIN` overrides the path to it); RMS's UserPromptSubmit hook tells Claude about a thread picked here.

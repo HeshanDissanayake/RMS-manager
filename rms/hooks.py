@@ -180,6 +180,10 @@ def session_start(project: Project, data: dict) -> dict:
     rec = sessions.register(project, sid, data.get("cwd") or os.getcwd(),
                             procs.claude_pid(), source=data.get("source", "startup"),
                             transcript=data.get("transcript_path"))
+    with store.locked(project.state_dir):
+        cur = sessions.get(project, sid) or rec
+        cur["told_thread"] = cur.get("thread")  # the start note below tells Claude this
+        sessions.save(project, cur)
     env_file = os.environ.get("CLAUDE_ENV_FILE")
     on_path = bool(env_file)
     if env_file:
@@ -279,7 +283,35 @@ def session_end(project: Project, data: dict) -> None:
     return None
 
 
+def user_prompt_submit(project: Project, data: dict) -> dict | None:
+    """Tell Claude when its thread changed outside its own commands (e.g. picked in the
+    RMS picker of the rms-thread mod, or released by the owner)."""
+    sid = data["session_id"]
+    rec = sessions.ensure(project, sid, data.get("cwd") or os.getcwd())
+    held = rec.get("thread")
+    if rec.get("told_thread", None) == held:
+        return None
+    with store.locked(project.state_dir):
+        cur = sessions.get(project, sid) or rec
+        cur["told_thread"] = held
+        sessions.save(project, cur)
+    if held:
+        t = threads.discover(project).get(held)
+        c = claims.get(project, held) or {}
+        where = (f" Its checkout: {project.rel(c['worktree'])}/ (branch "
+                 f"{project.thread_branch(held)}); write only there."
+                 if c.get("worktree") else "")
+        text = (f"RMS: this session ({rec['short']}) now holds thread {held} "
+                f"({t.name if t else ''}); the owner picked it, so do not ask which thread.{where} "
+                f"Run `rms status` for its State and How to resume before working.")
+    else:
+        text = (f"RMS: this session ({rec['short']}) holds no thread any more; file edits are "
+                f"blocked until a thread is claimed.")
+    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}
+
+
 HANDLERS = {
+    "user-prompt-submit": user_prompt_submit,
     "session-start": session_start,
     "pre-tool-use": pre_tool_use,
     "session-end": session_end,
@@ -322,5 +354,6 @@ def settings_for(rms_cmd: str) -> dict:
         "SessionStart": [{"hooks": h("session-start")}],
         "PreToolUse": [{"matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
                         "hooks": h("pre-tool-use")}],
+        "UserPromptSubmit": [{"hooks": h("user-prompt-submit")}],
         "SessionEnd": [{"hooks": h("session-end")}],
     }}

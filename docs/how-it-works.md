@@ -35,6 +35,7 @@ A hook is a command that Claude Code runs at a fixed moment. It gets a JSON obje
 |---|---|---|---|
 | `SessionStart` | session opens (also after `/clear`, resume, compaction) | `session_id`, `cwd`, `source`, `transcript_path` | `systemMessage`: shown to the owner (the thread list). `additionalContext`: added to Claude's context (who it is, what to do). |
 | `PreToolUse` | before each tool call matching the `matcher` (`Edit|Write|MultiEdit|NotebookEdit|Bash`) | `session_id`, `cwd`, `tool_name`, `tool_input` | nothing = normal permissions apply. `permissionDecision: "deny"` + reason = the call is blocked and Claude sees the reason. RMS never answers "allow", so the owner's permission prompts stay as they are. |
+| `UserPromptSubmit` | the owner sends a prompt | `additionalContext` only when the session's thread changed since Claude was last told (e.g. picked in the rms-thread mod's picker, or released by the owner) |
 | `SessionEnd` | session exits | `session_id`, `reason` | nothing; RMS releases the claim |
 
 The environment a command gets also matters:

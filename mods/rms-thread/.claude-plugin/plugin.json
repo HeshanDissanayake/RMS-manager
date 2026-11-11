@@ -1,0 +1,6 @@
+{
+  "name": "rms-thread",
+  "version": "0.1.0",
+  "description": "RMS: pick this session's thread when it starts in an RMS project, and show the held thread above the prompt",
+  "types": "./types/index.d.ts"
+}

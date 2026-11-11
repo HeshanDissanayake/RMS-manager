@@ -112,6 +112,10 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - `rms gc` lists candidates (LLVM-regsw's gc rule: not needed by an open thread or a milestone, unchanged for 4 weeks; cheap -> owner removes, expensive/data -> archive first). `rms archive/restore` for data (thread or experiment) and builds.
 - **Built 2026-11-11, sandbox only** (`tests/test_inventory.py`). Migrating LLVM-regsw's `shared/builds.md` and `catalog.csv`: later.
 
+## 10d. Claude Code mod `rms-thread` (owner 2026-11-11)
+
+- In an RMS project, a session with no thread gets a picker at start; the pick runs `rms claim` for this session. A band above the prompt shows the held thread (number, name, checkout, handover due); `/thread` picks or shows. Source: `mods/rms-thread/`; RMS's new UserPromptSubmit hook tells Claude about a thread picked outside its own commands.
+
 ## 11. Open questions
 
 - Can Claude Code hooks rewrite a command (for `tee` into consoles)? Later.

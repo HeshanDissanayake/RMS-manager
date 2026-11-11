@@ -191,6 +191,14 @@ class TestHooks(Fixture):
         self.session("cafe-1")
         self.assertIsNone(self._pre("cafe-1", "Write", file_path="/tmp/claude-1/x/scratch.txt"))
 
+    def test_user_prompt_tells_a_changed_thread_once(self):
+        self.session("cafe-1")
+        self.assertIsNone(self.hook("user-prompt-submit", session_id="cafe-1", cwd=str(self.root)))
+        claims.claim(self.p, "cafe-1", "T01")  # e.g. picked in the mod's picker
+        out = self.hook("user-prompt-submit", session_id="cafe-1", cwd=str(self.root))
+        self.assertIn("now holds thread T01", out["hookSpecificOutput"]["additionalContext"])
+        self.assertIsNone(self.hook("user-prompt-submit", session_id="cafe-1", cwd=str(self.root)))
+
     def test_session_end_releases(self):
         self.session("cafe-1")
         claims.claim(self.p, "cafe-1", "T01")
@@ -263,13 +271,13 @@ class TestSetup(Fixture):
         self.assertTrue((fresh / "rms.json").is_file())
         res = setup.doctor(fresh)
         hook_lines = [(lvl, m) for lvl, m in res if m.startswith("hook ")]
-        self.assertEqual(len(hook_lines), 3, res)
+        self.assertEqual(len(hook_lines), 4, res)
         self.assertEqual({lvl for lvl, _ in hook_lines}, {"ok"})
         self.assertTrue(any(lvl == "note" and "start `claude` in" in m for lvl, m in res))
         # a wrong program path is caught
         setup.install_hooks(fresh, "/nowhere/rms")
         fails = [m for lvl, m in setup.doctor(fresh) if lvl == "fail"]
-        self.assertEqual(len(fails), 3, fails)
+        self.assertEqual(len(fails), 4, fails)
 
     def test_no_user_scope(self):
         from rms import setup
