@@ -1,0 +1,11 @@
+{
+  "name": "demo-project",
+  "threads_dir": "threads",
+  "index_file": "threads/INDEX.md",
+  "side_dir": "side",
+  "state_dir": "store/rms",
+  "shared_writable": [],
+  "extra_writable": [
+    "/tmp/claude-*"
+  ]
+}

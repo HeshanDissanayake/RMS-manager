@@ -90,6 +90,8 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - **One session per thread:** while a live session holds a thread, any other session's claim is refused (with who holds it). A holder whose process is gone is shown as stale; a takeover only with the owner's say-so.
 - A **PreToolUse hook** denies writes until the session holds a thread, and writes outside its thread's area; it also refreshes "last seen". A SessionEnd hook / `rms release` frees the claim.
 - The TUI shows sessions and claims live (view, and release a stale claim); it is not in the claim path.
+- **Built 2026-11-11** (README "Step 1"). Tried with real Claude Code sessions (Haiku, `claude -p`) on `sandbox/demo-project`: registration, block before claim, claim, write confined to the thread, second live session refused, release at session end. Found and fixed: a session wrapped the call as `(rms claim T01 2>&1 || <path>/rms claim T01 2>&1)`, which the first command check refused.
+- Open: Bash commands are not checked once a thread is held; a session ending releases its claim (no handover check yet); connecting LLVM-regsw (hooks in its `.claude/settings.json`, `rms.json`) is the owner's call.
 
 ## 11. Open questions
 
