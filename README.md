@@ -1,6 +1,6 @@
 # RMS-manager
 
-The core of RMS: one program that runs a long, multi-session research project. It keeps the registry and history of everything (threads, builds, data, experiments, milestones), runs the thread lifecycle as fixed commands, holds the locks, enforces the mechanical rules, tracks running jobs per thread, and serves all of it to frontends ([RMS-web](../2026-11-11-RMS-web/)).
+The core of RMS: one program that runs a long, multi-session research project. It keeps the registry and history of everything (threads, builds, data, experiments, milestones), runs the thread lifecycle as fixed commands, holds the locks, enforces the mechanical rules, tracks running jobs per thread, and serves all of it to frontends ([RMS-web](../RMS-web/)).
 
 **Status:** initialised 2026-11-11; nothing built yet. Owner's private work (side project of `~/working_dir/LLVM-regsw`, not part of its records). First user: LLVM-regsw.
 
