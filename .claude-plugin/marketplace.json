@@ -1,0 +1,11 @@
+{
+  "name": "rms-manager",
+  "owner": { "name": "HeshanDissanayake" },
+  "plugins": [
+    {
+      "name": "rms-thread",
+      "source": "./mods/rms-thread",
+      "description": "RMS: pick this session's thread when it starts in an RMS project, and show the held thread above the prompt"
+    }
+  ]
+}

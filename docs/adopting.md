@@ -52,6 +52,24 @@ The folder names are defaults; `rms.json` can point elsewhere (`threads_dir`, `i
 
 6. **Try it:** start `claude` in the project root and type `hi`. You should see the RMS line with the thread list, and Claude should ask which thread. `rms tui` (run from the project) shows the session appear.
 
+## Moving to a new machine (or a fresh Claude Code)
+
+Everything RMS needs is in two places: this repo (the program, the mod) and each project's own files (`rms.json`, `.claude/settings.json`, `threads/`). RMS's state (`store/rms/`) is per machine and starts empty; claims and sessions are not moved.
+
+1. **RMS:** clone this repo and install it (step 1 above):
+   ```bash
+   git clone https://github.com/HeshanDissanayake/RMS-manager.git
+   cd RMS-manager && python3 -m venv .venv && .venv/bin/pip install -e .
+   ```
+2. **The project's hooks:** they hold the path to `rms` on the old machine. Run `rms install-hooks <project>` again (it replaces only RMS's own entries), then `rms doctor <project>`.
+3. **The mod `rms-thread`** (thread picker at session start, thread band above the prompt). Run at the prompt of a terminal Claude Code session:
+   ```
+   /plugin install rms-thread --marketplace HeshanDissanayake/RMS-manager
+   ```
+   or, from a shell, `claude plugin install rms-thread --marketplace HeshanDissanayake/RMS-manager`. Answer `y` to add the marketplace, then choose the user scope. From a local clone instead of GitHub: `/plugin marketplace add <path to RMS-manager>`, then `/plugin install rms-thread@rms-manager`. A private repo installs only where git already has a credential for github.com.
+4. **Where the mod finds `rms`:** `$RMS_BIN` if set, else `~/working_dir/LLVM-regsw/side/RMS-manager/.venv/bin/rms` (this machine's install), else `rms` on `PATH`. On a machine where the clone is elsewhere, set `RMS_BIN` (e.g. in `~/.claude/settings.json` under `"env"`), or put `.venv/bin` on `PATH`.
+5. **Check:** start `claude` in the project root. You should see the RMS line, the thread picker, and after a pick the band `RMS T<NN> <name>` above the prompt.
+
 ## Checklist when something does not work
 
 | symptom | cause / fix |
@@ -61,6 +79,7 @@ The folder names are defaults; `rms.json` can point elsewhere (`threads_dir`, `i
 | `rms: command not found` inside Claude | `CLAUDE_ENV_FILE` not set by this Claude Code version → Claude uses the absolute path given in its context |
 | claim refused, "held by S-XXXX (live)" | another session works on that thread (by design); `rms sessions` shows it |
 | claim refused, "stale" | holder is gone; with the owner's yes: `rms claim T<NN> --take-over`, or the owner: `rms release T<NN>` / TUI `x` |
+| no picker or band, but the RMS line shows | the mod is not installed (`/plugin` lists it), or it cannot find `rms`: set `RMS_BIN` |
 | `hook-error` in `rms log` | a bug in RMS; the call was let through. Report the error line. |
 
 ## Removing RMS from a project

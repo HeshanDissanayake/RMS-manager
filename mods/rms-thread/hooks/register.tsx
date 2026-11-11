@@ -16,7 +16,7 @@ import type { RmsInfo } from '../types'
 
 const info = atom({ plugin: 'rms-thread', key: 'info' } as const, null)
 
-// Where the rms program is; RMS_BIN in the environment overrides it.
+// The usual install (this repo's .venv); $RMS_BIN overrides, `rms` on PATH is the fallback.
 const DEFAULT_RMS = '/home/heshds/working_dir/LLVM-regsw/side/RMS-manager/.venv/bin/rms'
 const NO_THREAD = 'No thread now'
 
@@ -29,17 +29,21 @@ type Thread = {
   held_by: string | null
 }
 
+// The rms program: $RMS_BIN, else the usual install, else `rms` on PATH.
 async function rms($: EngineInterface, args: string[]) {
-  const bin = (await $.env.get('RMS_BIN')) || DEFAULT_RMS
+  const set = await $.env.get('RMS_BIN')
   const sid = await $.session.id()
-  try {
-    return await $.process.run([bin, ...args], {
-      env: { CLAUDE_CODE_SESSION_ID: sid },
-      timeoutMs: 30000,
-    })
-  } catch {
-    return null // rms missing or hung: behave as outside RMS
+  for (const bin of set ? [set] : [DEFAULT_RMS, 'rms']) {
+    try {
+      return await $.process.run([bin, ...args], {
+        env: { CLAUDE_CODE_SESSION_ID: sid },
+        timeoutMs: 30000,
+      })
+    } catch {
+      // cannot start: try the next; none: behave as outside RMS
+    }
   }
+  return null
 }
 
 async function refresh($: EngineInterface): Promise<RmsInfo | null> {

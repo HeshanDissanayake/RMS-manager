@@ -78,7 +78,7 @@ State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `e
 
 ## Claude Code mod: `mods/rms-thread`
 
-In an RMS project a session that holds no thread gets a picker at start ("Which thread will this session work on?"); the band right above the prompt then shows `RMS T01 fast sort · store/worktrees/T01/` (and "handover due"). `/thread` picks or shows it. Source in `mods/rms-thread/` (tests: `claude plugin test mods/rms-thread`); the loaded copy lives in `~/.claude/dev-mods/<session>/rms-thread/` while it is developed. RMS's UserPromptSubmit hook tells Claude about a thread picked there.
+In an RMS project a session that holds no thread gets a picker at start ("Which thread will this session work on?"); the band right above the prompt then shows `RMS T01 fast sort · store/worktrees/T01/` (and "handover due"). `/thread` picks or shows it. Source in `mods/rms-thread/` (tests: `claude plugin test mods/rms-thread`). This repo is its marketplace (`.claude-plugin/marketplace.json`); install it with `/plugin install rms-thread --marketplace HeshanDissanayake/RMS-manager` (a new machine: `docs/adopting.md`, "Moving to a new machine"). RMS's UserPromptSubmit hook tells Claude about a thread picked there.
 
 ## Layout
 
