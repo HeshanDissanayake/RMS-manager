@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from rms import __version__, claims, hooks, sessions, store, threads
+from rms import __version__, claims, hooks, sessions, setup, store, threads
 from rms.config import CONFIG_NAME, Project, find_project, init_project, load
 
 
@@ -152,23 +152,56 @@ def cmd_hook(args) -> int:
     return hooks.run(args.event)
 
 
+def _scope(args) -> str:
+    return "user" if args.user else "local" if args.local else "project"
+
+
 def cmd_install_hooks(args) -> int:
     root = Path(args.dir).resolve()
-    if not (root / CONFIG_NAME).is_file():
-        return _fail(f"{root} has no {CONFIG_NAME} (run `rms init {args.dir}` first)")
-    block = hooks.settings_for(args.command or hooks.rms_command())
+    if not args.user and not (root / CONFIG_NAME).is_file():
+        return _fail(f"{root} has no {CONFIG_NAME} (run `rms adopt {args.dir}`)")
+    rms_cmd = args.command or hooks.rms_command()
     if args.print:
-        print(json.dumps(block, indent=2))
+        print(json.dumps(hooks.settings_for(rms_cmd), indent=2))
         return 0
-    path = root / ".claude" / "settings.json"
-    cur = store.read_json(path, {}) if path.exists() else {}
-    if cur.get("hooks") and not args.force:
-        return _fail(f"{path} already has hooks; check them, then use --force to replace "
-                     f"them (or --print and merge by hand)")
-    cur["hooks"] = block["hooks"]
-    store.write_json(path, cur)
-    print(f"wrote hooks to {path}")
+    try:
+        path = setup.install_hooks(root, rms_cmd, scope=_scope(args))
+    except ValueError as e:
+        return _fail(str(e))
+    print(f"RMS hooks merged into {path} (other settings and hooks kept)")
     return 0
+
+
+def _print_doctor(root: Path) -> int:
+    marks = {"ok": "  ok  ", "warn": "  warn", "fail": "  FAIL"}
+    results = setup.doctor(root)
+    for level, msg in results:
+        print(f"{marks[level]}  {msg}")
+    fails = sum(level == "fail" for level, _ in results)
+    print("\nready" if not fails else f"\n{fails} problem(s): RMS will not work until fixed")
+    return 1 if fails else 0
+
+
+def cmd_doctor(args) -> int:
+    return _print_doctor(Path(args.dir))
+
+
+def cmd_adopt(args) -> int:
+    root = Path(args.dir).resolve()
+    if not root.is_dir():
+        return _fail(f"{root} is not a folder")
+    if (root / CONFIG_NAME).is_file():
+        print(f"{CONFIG_NAME} exists, kept")
+    else:
+        print(f"created {init_project(root, args.name)}")
+    rms_cmd = args.command or hooks.rms_command()
+    try:
+        path = setup.install_hooks(root, rms_cmd, scope=_scope(args))
+    except ValueError as e:
+        return _fail(str(e))
+    print(f"RMS hooks merged into {path}")
+    print()
+    return _print_doctor(root)
 
 
 def cmd_tui(args) -> int:
@@ -177,6 +210,15 @@ def cmd_tui(args) -> int:
 
 
 # --- parser -------------------------------------------------------------------
+
+def _scope_args(s: argparse.ArgumentParser) -> None:
+    g = s.add_mutually_exclusive_group()
+    g.add_argument("--local", action="store_true",
+                   help="hooks in <dir>/.claude/settings.local.json (personal, not in git)")
+    g.add_argument("--user", action="store_true",
+                   help="hooks in ~/.claude/settings.json: every session on this machine, "
+                        "any folder (recommended; see docs/how-it-works.md)")
+
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="rms", description="RMS (Research Manager)")
@@ -224,12 +266,23 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("event", choices=sorted(hooks.HANDLERS))
     s.set_defaults(fn=cmd_hook)
 
-    s = sub.add_parser("install-hooks", help="write the hooks into <dir>/.claude/settings.json")
+    s = sub.add_parser("adopt", help="put RMS on a project: rms.json + hooks + check")
+    s.add_argument("dir", nargs="?", default=".")
+    s.add_argument("--name")
+    _scope_args(s)
+    s.add_argument("--command", help="how the hooks call rms (default: this executable)")
+    s.set_defaults(fn=cmd_adopt)
+
+    s = sub.add_parser("install-hooks", help="merge RMS's hooks into <dir>/.claude/settings.json")
     s.add_argument("dir", nargs="?", default=".")
     s.add_argument("--print", action="store_true", help="only print the hooks block")
-    s.add_argument("--force", action="store_true", help="replace existing hooks")
+    _scope_args(s)
     s.add_argument("--command", help="how the hooks call rms (default: this executable)")
     s.set_defaults(fn=cmd_install_hooks)
+
+    s = sub.add_parser("doctor", help="check a project's RMS setup (config, hooks, folders)")
+    s.add_argument("dir", nargs="?", default=".")
+    s.set_defaults(fn=cmd_doctor)
 
     s = sub.add_parser("tui", help="the terminal UI")
     s.set_defaults(fn=cmd_tui)

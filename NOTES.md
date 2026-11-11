@@ -91,6 +91,8 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - A **PreToolUse hook** denies writes until the session holds a thread, and writes outside its thread's area; it also refreshes "last seen". A SessionEnd hook / `rms release` frees the claim.
 - The TUI shows sessions and claims live (view, and release a stale claim); it is not in the claim path.
 - **Built 2026-11-11** (README "Step 1"). Tried with real Claude Code sessions (Haiku, `claude -p`) on `sandbox/demo-project`: registration, block before claim, claim, write confined to the thread, second live session refused, release at session end. Found and fixed: a session wrapped the call as `(rms claim T01 2>&1 || <path>/rms claim T01 2>&1)`, which the first command check refused.
+- **Where hooks are read (tested 2026-11-11):** Claude Code reads a project's `.claude/settings.json` only when `claude` starts in that exact folder; not from parent folders, not from the git root. Sessions started in `side/<name>/` or a thread folder would be missed. **Proposed:** hooks at user level (`~/.claude/settings.json`, `rms install-hooks --user`); outside an RMS project the hook exits at once (0.04 s). Owner to decide; not installed.
+- Putting RMS on a project: `rms adopt`, `rms doctor`, hooks merged (never replacing other hooks); written up in `docs/adopting.md`, the why in `docs/how-it-works.md`.
 - Open: Bash commands are not checked once a thread is held; a session ending releases its claim (no handover check yet); connecting LLVM-regsw (hooks in its `.claude/settings.json`, `rms.json`) is the owner's call.
 
 ## 11. Open questions

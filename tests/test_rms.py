@@ -34,8 +34,13 @@ class Fixture(unittest.TestCase):
         dead.wait()
         self.dead_pid = dead.pid
         os.environ.pop("RMS_PROJECT", None)
+        # never read or write the real ~/.claude/settings.json
+        self._home = os.environ.get("HOME")
+        os.environ["HOME"] = str(self.dir / "home")
 
     def tearDown(self) -> None:
+        if self._home is not None:
+            os.environ["HOME"] = self._home
         self.live.kill()
         self.live.wait()
         shutil.rmtree(self.dir)
@@ -224,6 +229,58 @@ class TestTui(Fixture):
                 self.assertEqual(type(app.screen).__name__, "TextScreen")
                 await pilot.press("escape")
         asyncio.run(go())
+
+
+class TestSetup(Fixture):
+    def test_merge_keeps_other_hooks_and_is_idempotent(self):
+        from rms import setup
+        mine = {"type": "command", "command": "echo mine"}
+        settings = {"model": "opus", "hooks": {
+            "PreToolUse": [{"matcher": "Bash", "hooks": [mine]}],
+            "Stop": [{"hooks": [mine]}]}}
+        once = setup.merge_hooks(settings, "/x/rms")
+        twice = setup.merge_hooks(once, "/y/rms")
+        self.assertEqual(twice["model"], "opus")
+        self.assertEqual(twice["hooks"]["Stop"], [{"hooks": [mine]}])
+        pre = twice["hooks"]["PreToolUse"]
+        self.assertEqual(len(pre), 2)  # owner's + one RMS entry (not two)
+        self.assertEqual(pre[0]["hooks"], [mine])
+        self.assertIn("/y/rms hook pre-tool-use", pre[1]["hooks"][0]["command"])
+        self.assertEqual(len(twice["hooks"]["SessionStart"]), 1)
+
+    def test_adopt_fresh_project_and_doctor(self):
+        from rms import cli, setup
+        fresh = self.dir / "fresh"
+        (fresh / "threads" / "T00-main").mkdir(parents=True)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = cli.main(["adopt", str(fresh), "--command", str(HERE / ".venv/bin/rms")])
+        self.assertEqual(rc, 0, out.getvalue())
+        self.assertTrue((fresh / "rms.json").is_file())
+        res = setup.doctor(fresh)
+        hook_lines = [(lvl, m) for lvl, m in res if m.startswith("hook ")]
+        self.assertEqual(len(hook_lines), 3, res)
+        self.assertEqual({lvl for lvl, _ in hook_lines}, {"ok"})
+        self.assertTrue(any("only at project level" in m for _, m in res))
+        # a wrong program path is caught
+        setup.install_hooks(fresh, "/nowhere/rms")
+        fails = [m for lvl, m in setup.doctor(fresh) if lvl == "fail"]
+        self.assertEqual(len(fails), 3, fails)
+
+    def test_user_scope(self):
+        from rms import setup
+        path = setup.install_hooks(None, str(HERE / ".venv/bin/rms"), scope="user")
+        self.assertEqual(path, self.dir / "home" / ".claude" / "settings.json")
+        res = setup.doctor(self.root)
+        self.assertFalse(any("only at project level" in m for _, m in res))
+        self.assertFalse(any(lvl == "fail" for lvl, _ in res), res)
+        with self.assertRaisesRegex(ValueError, "absolute"):
+            setup.install_hooks(None, "$CLAUDE_PROJECT_DIR/rms", scope="user")
+
+    def test_local_settings(self):
+        from rms import setup
+        path = setup.install_hooks(self.root, "/x/rms", scope="local")
+        self.assertEqual(path.name, "settings.local.json")
 
 
 class TestConfig(Fixture):

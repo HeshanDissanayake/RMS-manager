@@ -4,6 +4,8 @@ The core of RMS (Research Manager): one program that runs a long, multi-session 
 
 **Status:** step 1 built 2026-11-11: sessions, thread claims, Claude Code hooks, CLI, terminal UI; tried on a demo project (not yet connected to LLVM-regsw). Owner's private work (side project of `~/working_dir/LLVM-regsw`, not part of its records). First user: LLVM-regsw.
 
+**Docs:** [`docs/how-it-works.md`](docs/how-it-works.md) (hooks, state, rules; where Claude Code reads hooks from) · [`docs/adopting.md`](docs/adopting.md) (putting RMS on a project, checklist).
+
 **Read first:** [`NOTES.md`](NOTES.md) (the design as agreed so far, open questions, stages). Background: [`../2026-11-09-rms-system/SUMMARY.md`](../2026-11-09-rms-system/SUMMARY.md) (the system as built by hand in LLVM-regsw, 2026-11-07…09, and its weak points).
 
 ## What it will do
@@ -45,8 +47,10 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 
 | command | what |
 |---|---|
-| `rms init [dir]` | create `rms.json` (the project as config) |
-| `rms install-hooks [dir] [--print]` | write the hooks into `<dir>/.claude/settings.json` (or print them) |
+| `rms adopt [dir] [--user\|--local]` | put RMS on a project: `rms.json` + hooks (merged) + `doctor` |
+| `rms doctor [dir]` | check a project's setup: config, folders, git-ignore, hooks and the `rms` path |
+| `rms init [dir]` | create `rms.json` only |
+| `rms install-hooks [dir] [--user\|--local] [--print]` | merge RMS's hooks into a settings file (others kept), or print them |
 | `rms threads` / `rms sessions [--all]` | threads with their claims / sessions |
 | `rms whoami` | this session: thread, side folder, what it may write |
 | `rms claim T<NN> [--take-over] [--allow-done]` | claim a thread for this session |
@@ -58,6 +62,8 @@ In the TUI: arrows/tab to move, `enter` details, `x` release a claim, `e` show e
 
 State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `events.jsonl`). Tests: `.venv/bin/python -m unittest discover -s tests`.
 
+**Where the hooks go:** Claude Code reads a project's `.claude/settings.json` only when `claude` is started in that exact folder (not in a subfolder), so the recommended place is `~/.claude/settings.json` (`--user`): see [`docs/how-it-works.md`](docs/how-it-works.md).
+
 **Known limit:** once a session holds a thread, its Bash commands are not checked (only Edit/Write are confined to the thread folder). Before it holds one, only read-only commands and `rms` run.
 
 ## Layout
@@ -65,8 +71,9 @@ State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `e
 ```
 RMS-manager/
 ├── README.md, NOTES.md, CLAUDE.md
+├── docs/                   how-it-works.md, adopting.md
 ├── pyproject.toml          package `rms`, command `rms`
-├── rms/                    config, store, procs, threads, sessions, claims, hooks, cli, tui
+├── rms/                    config, store, procs, threads, sessions, claims, hooks, setup, cli, tui
 ├── tests/                  unittest (sessions, claims, hooks, TUI)
 └── sandbox/demo-project/   demo project: rms.json, threads/, side/, .claude/settings.json
 ```

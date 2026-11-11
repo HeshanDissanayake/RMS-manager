@@ -16,7 +16,8 @@ RMS (Research Manager) is one program that runs a long, multi-session research p
 
 Read first:
 - [`NOTES.md`](NOTES.md): the agreed design, stages and open questions. It is the source of truth for decisions. "Agreed" = owner said yes; "proposed" = not decided.
-- [`README.md`](README.md): overview and planned layout.
+- [`README.md`](README.md): overview, commands, layout.
+- [`docs/how-it-works.md`](docs/how-it-works.md) and [`docs/adopting.md`](docs/adopting.md): how the hooks and state work, and how to put RMS on a project. **Keep them current**: any change to hooks, config, state files or setup steps updates these docs in the same commit.
 - Background: [`../2026-11-09-rms-system/SUMMARY.md`](../2026-11-09-rms-system/SUMMARY.md) (the hand-run system and its weak points); LLVM-regsw `RULES.md` (R1–R50) is the rule set being mechanised.
 
 ## Design principles (from NOTES.md §2)
