@@ -1,6 +1,6 @@
 """Putting RMS on a project: hooks in .claude/settings*.json, and a setup check.
 
-See docs/adopting.md for the steps and docs/how-it-works.md for the why.
+See docs/adopting.md for the steps and docs/SPEC.md for the why.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ EVENTS = {  # Claude Code event -> rms hook name
 
 # Hooks live only in the project's own folder (owner's decision 2026-11-11):
 # never in ~/.claude/settings.json. Claude Code reads them only when `claude`
-# is started in the project root (docs/how-it-works.md).
+# is started in the project root (docs/SPEC.md §6).
 SCOPES = ("project", "local")
 
 

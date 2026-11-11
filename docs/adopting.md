@@ -1,6 +1,6 @@
 # Putting RMS on a project
 
-How to make any project an RMS project. Why each step exists: [how-it-works.md](how-it-works.md).
+How to make any project an RMS project. Why each step exists, and everything else RMS does: [SPEC.md](SPEC.md).
 
 ## What the project needs
 

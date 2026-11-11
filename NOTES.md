@@ -92,7 +92,7 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - The TUI shows sessions and claims live (view, and release a stale claim); it is not in the claim path.
 - **Built 2026-11-11** (README "Step 1"). Tried with real Claude Code sessions (Haiku, `claude -p`) on `sandbox/demo-project`: registration, block before claim, claim, write confined to the thread, second live session refused, release at session end. Found and fixed: a session wrapped the call as `(rms claim T01 2>&1 || <path>/rms claim T01 2>&1)`, which the first command check refused.
 - **Where hooks are read (tested 2026-11-11):** Claude Code reads a project's `.claude/settings.json` only when `claude` starts in that exact folder; not from parent folders, not from the git root. Sessions started in `side/<name>/` or a thread folder would be missed. **Decided (owner):** hooks only in the project's own folder (`.claude/settings.json` / `settings.local.json`), never user level; sessions start in the project root; the project's `CLAUDE.md` (read from subfolders too) tells a session without the RMS note to stop and ask for a restart in the root. Side sessions started in `side/<name>/` (such as RMS-manager's own) are not managed by RMS, by design (owner, 2026-11-11); the CLAUDE.md line exempts them.
-- Putting RMS on a project: `rms adopt`, `rms doctor`, hooks merged (never replacing other hooks); written up in `docs/adopting.md`, the why in `docs/how-it-works.md`.
+- Putting RMS on a project: `rms adopt`, `rms doctor`, hooks merged (never replacing other hooks); written up in `docs/adopting.md`, the why in `docs/how-it-works.md` (now `docs/SPEC.md`).
 - Open: Bash commands are not checked once a thread is held; a session ending releases its claim (no handover check yet); connecting LLVM-regsw (hooks in its `.claude/settings.json`, `rms.json`) is the owner's call.
 
 ## 10b. Thread lifecycle (next step; owner 2026-11-11)
@@ -102,7 +102,7 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - **Submodules now** (owner): source repos are submodules of the root (`update = none`: record only). Sandbox: `sandbox/reset-demo.sh` builds `sandbox/demo/origins/{fastlib,simulator}.git` and `sandbox/demo/root` (submodules in `src/`, branches `thread/T01..T03`, T00 = `main`).
 - **Handover** (owner): RMS does not write the note. It marks the handover as due and pushes Claude to do it; Claude writes the handover note in the thread's folder (`threads/T<NN>-*/`).
 - Handover note = THREAD.md (State / How to resume / Where things are / Open items), as in LLVM-regsw. Worktree per thread, as in LLVM-regsw's PLAN section 5.
-- **Built 2026-11-11:** create, claim (checkout), handover (two steps), close (milestone / merge point / none), reopen, archive, restore (`rms/lifecycle.py`, docs/how-it-works.md "Thread lifecycle"). Owner (2026-11-11): the INDEX status changes only at handover (in-use = RMS's claims); `rms close` refuses without the owner's `rms approve-close T<NN>` (own terminal or TUI `c`; blocked for sessions). Source repos get the thread's branch only when the thread changes them (first edit, or at handover); tags only `milestone-<N>` (owner 2026-11-11). Tested end to end (`tests/test_lifecycle.py`) and with a real Claude session (Haiku) doing claim, source commit and handover in the sandbox.
+- **Built 2026-11-11:** create, claim (checkout), handover (two steps), close (milestone / merge point / none), reopen, archive, restore (`rms/lifecycle.py`, docs/SPEC.md §5). Owner (2026-11-11): the INDEX status changes only at handover (in-use = RMS's claims); `rms close` refuses without the owner's `rms approve-close T<NN>` (own terminal or TUI `c`; blocked for sessions). Source repos get the thread's branch only when the thread changes them (first edit, or at handover); tags only `milestone-<N>` (owner 2026-11-11). Tested end to end (`tests/test_lifecycle.py`) and with a real Claude session (Haiku) doing claim, source commit and handover in the sandbox.
 
 ## 10c. Builds and data per thread (owner 2026-11-11)
 
@@ -131,6 +131,10 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 ## 10g. Tickets to the RMS repo (owner 2026-11-11)
 
 - From any project (or none), the owner or a Claude session sends a ticket to this repo: `rms ticket`, `/ticket` in Claude Code, `n` in the TUI. Plain files in `tickets/`, not GitHub. Context attached automatically. A session here lists open tickets at start (CLAUDE.md); closing only here.
+
+## 10h. One specification (owner 2026-11-11)
+
+- `docs/SPEC.md` describes everything RMS does, in a fixed order; it replaced `docs/how-it-works.md`. README and adopting.md stay short and link to it. Every change updates it in the same commit; a test checks every command is listed.
 
 ## 11. Open questions
 

@@ -4,7 +4,7 @@ The core of RMS (Research Manager): one program that runs a long, multi-session 
 
 **Status:** step 1 built 2026-11-11: sessions, thread claims, Claude Code hooks, CLI, terminal UI; tried on a demo project (not yet connected to LLVM-regsw). Owner's private work (side project of `~/working_dir/LLVM-regsw`, not part of its records). First user: LLVM-regsw.
 
-**Docs:** [`docs/how-it-works.md`](docs/how-it-works.md) (hooks, state, rules; where Claude Code reads hooks from) · [`docs/adopting.md`](docs/adopting.md) (putting RMS on a project, checklist).
+**Docs:** [`docs/SPEC.md`](docs/SPEC.md) (**the specification**: everything RMS does) · [`docs/adopting.md`](docs/adopting.md) (putting RMS on a project, checklist).
 
 **Read first:** [`NOTES.md`](NOTES.md) (the design as agreed so far, open questions, stages). Background: [`../2026-11-09-rms-system/SUMMARY.md`](../2026-11-09-rms-system/SUMMARY.md) (the system as built by hand in LLVM-regsw, 2026-11-07…09, and its weak points).
 
@@ -77,7 +77,7 @@ In the TUI: arrows/tab to move, `enter` details, `t` open the selected thread in
 
 State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `events.jsonl`). Tests: `.venv/bin/python -m unittest discover -s tests -t .`.
 
-**Where the hooks go:** only in the project's own `.claude/settings.json` (or `settings.local.json`), never at user level (owner, 2026-11-11). Claude Code reads them only when `claude` starts in that exact folder, so **sessions start in the project root**: see [`docs/how-it-works.md`](docs/how-it-works.md).
+**Where the hooks go:** only in the project's own `.claude/settings.json` (or `settings.local.json`), never at user level (owner, 2026-11-11). Claude Code reads them only when `claude` starts in that exact folder, so **sessions start in the project root**: see [`docs/SPEC.md`](docs/SPEC.md) §6.
 
 **Known limit:** once a session holds a thread, its Bash commands are not checked (only Edit/Write are confined to the thread folder). Before it holds one, only read-only commands and `rms` run.
 
@@ -90,7 +90,7 @@ In an RMS project a session that holds no thread gets a picker at start ("Which 
 ```
 RMS-manager/
 ├── README.md, NOTES.md, CLAUDE.md
-├── docs/                   how-it-works.md, adopting.md
+├── docs/                   SPEC.md (the spec), adopting.md
 ├── mods/rms-thread/        Claude Code mod: thread picker at start, thread band above the prompt
 ├── pyproject.toml          package `rms`, command `rms`
 ├── rms/                    config, store, procs, git, threads, index, sessions, claims, lifecycle, inventory, warns, threadinfo, hooks, setup, cli, tui
