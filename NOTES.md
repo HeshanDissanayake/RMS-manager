@@ -83,6 +83,14 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 - **Remote:** `github` → `HeshanDissanayake/RMS-manager` (set up by the owner). Sessions commit; the owner pushes.
 - **Way of working:** step by step, not the whole plan at once. First step: how a Claude session starting in the project becomes known to RMS and gets the owner's permission to work on a thread, and how it manages that thread. A **terminal UI** comes before the web UI so the owner can run the app himself.
 
+## 10a. Sessions and thread claims (agreed 2026-11-11)
+
+- A Claude Code session starting in the project is registered by RMS through a **SessionStart hook** (Claude Code's `session_id`, cwd, Claude's PID). No ID is asked of the owner.
+- **The session claims the thread itself** (`rms claim T<NN>`) after asking the owner which thread; no separate approval in the RMS UI. The owner trusts Claude Code at that point.
+- **One session per thread:** while a live session holds a thread, any other session's claim is refused (with who holds it). A holder whose process is gone is shown as stale; a takeover only with the owner's say-so.
+- A **PreToolUse hook** denies writes until the session holds a thread, and writes outside its thread's area; it also refreshes "last seen". A SessionEnd hook / `rms release` frees the claim.
+- The TUI shows sessions and claims live (view, and release a stale claim); it is not in the claim path.
+
 ## 11. Open questions
 
 - Can Claude Code hooks rewrite a command (for `tee` into consoles)? Later.
