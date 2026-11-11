@@ -7,7 +7,7 @@ project's ``.claude/settings.json`` (``rms install-hooks``).
 - session-start: register the session; tell Claude (added to its context)
   who it is, which threads are free, and how to claim one.
 - pre-tool-use: refresh "last seen"; deny writes the session may not make.
-- session-end: mark the session ended and release its claims.
+- session-end: mark the session ended, release its claims, record its token use.
 
 A hook never breaks Claude Code: on an internal error it logs and lets the
 call through (exit 0, no decision).
@@ -280,6 +280,8 @@ def session_end(project: Project, data: dict) -> None:
         return None
     claims.release_all(project, sid, by="session-end", reason=reason or None)
     sessions.end(project, sid, reason)
+    from rms import usage
+    usage.refresh(project, only=sid)  # its tokens, per thread and model
     return None
 
 

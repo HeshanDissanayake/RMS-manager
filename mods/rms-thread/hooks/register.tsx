@@ -4,7 +4,8 @@
 //   and holds no thread gets a picker: "Which thread will this session work on?".
 //   The pick runs `rms claim T<NN>` for this session; RMS's own UserPromptSubmit
 //   hook then tells Claude on the next prompt.
-// - Right above the prompt: the held thread's number and name (or "no thread",
+// - Right above the prompt: the held thread's number and name, and the Claude
+//   tokens the thread has used so far with each model's share (or "no thread",
 //   with a button to pick one). /thread picks or shows it again.
 //
 // All state comes from the rms CLI; the mod keeps only a copy to draw from.
@@ -58,6 +59,23 @@ async function refresh($: EngineInterface): Promise<RmsInfo | null> {
   }
   await update($, info, () => v)
   return v
+}
+
+export function tokens(n: number): string {
+  for (const [unit, size] of [['B', 1e9], ['M', 1e6], ['k', 1e3]] as const) {
+    if (n >= size) return `${(n / size).toFixed(1)}${unit}`
+  }
+  return String(n)
+}
+
+function usageText(v: RmsInfo): string | null {
+  const u = v.usage
+  if (!u || !u.total) return null
+  const mix = u.models
+    .slice(0, 3)
+    .map(m => `${m.model} ${Math.round(m.pct)}%`)
+    .join(', ')
+  return `${tokens(u.total)} tok (${mix})`
 }
 
 function label(t: Thread): string {
@@ -180,6 +198,7 @@ export const register: Register = on => {
           </Text>
           <Text>{` ${v.thread_name ?? ''}`}</Text>
           {v.worktree ? <Text dimColor>{`  ·  ${v.worktree}`}</Text> : null}
+          {usageText(v) ? <Text color="magenta">{`  ·  ${usageText(v)}`}</Text> : null}
           {v.handover_due ? <Text color="yellow">{'  ·  handover due'}</Text> : null}
         </Box>
       )

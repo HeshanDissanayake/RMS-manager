@@ -7,6 +7,7 @@
   README.md with a "# EXP-…: title" line and a **Status:**, summary.csv for
   the numbers, large data in <data_dir>/T<NN>/<EXP>/), with sizes;
 - disk: totals per kind;
+- claude: tokens per model and the sessions that worked on it (rms/usage.py);
 - processes: what runs for the thread now: children of the Claude session
   that holds it, and any process whose working folder is in the thread's
   checkout, data or builds.
@@ -18,7 +19,7 @@ import os
 import re
 from pathlib import Path
 
-from rms import claims, inventory, lifecycle, sessions, threads
+from rms import claims, inventory, lifecycle, sessions, threads, usage
 from rms.config import Project
 from rms.git import current_branch, dirty, git, pointer, submodule_paths
 
@@ -237,7 +238,13 @@ def collect(project: Project, tid: str, sizes: bool = True) -> dict:
         "branch": project.thread_branch(tid),
         "sources": srcs, "builds": view["builds"], "uses": view["uses"], "experiments": exps,
         "data_bytes": data_total, "disk": disk, "processes": processes(project, tid),
+        "claude": claude(project, tid),
     }
+
+
+def claude(project: Project, tid: str) -> dict:
+    usage.refresh(project)
+    return usage.for_thread(project, tid)
 
 
 def text(project: Project, tid: str) -> str:
@@ -258,6 +265,7 @@ def text(project: Project, tid: str) -> str:
               for e in r["experiments"]] or ["  none"]
     lines += ["", "Disk:"]
     lines += [f"  {k:<12} {h(v)}" for k, v in (r["disk"] or {}).items()]
+    lines += [""] + usage.text(project, r["thread"]).splitlines()
     lines += ["", "Running now:"]
     lines += [f"  {p['pid']:>7}  {p['seconds'] // 60:>4} min  {p['cwd']:<30} {p['cmd'][:70]}"
               for p in r["processes"]] or ["  nothing"]

@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threadinfo, threads, warns
+from rms import __version__, claims, hooks, inventory, lifecycle, sessions, setup, store, threadinfo, threads, usage, warns
 from rms.git import GitError
 from rms.config import CONFIG_NAME, Project, find_project, init_project, load
 
@@ -86,6 +86,11 @@ def whoami_json(p: Project, rec: dict | None) -> dict:
                    worktree=(("root checkout (main)" if lifecycle.is_main(p, rec["thread"])
                               else p.rel(c["worktree"]) + "/") if c.get("worktree") else None),
                    handover_due=bool(c.get("handover_due")))
+        usage.refresh(p, only=rec["id"])
+        v = usage.for_thread(p, rec["thread"])
+        out["usage"] = {"total": v["total"], "cost": v["cost"],
+                        "models": [{"model": usage.short_model(m), "pct": c["pct"]}
+                                   for m, c in v["models"].items()]}
     return out
 
 
@@ -406,6 +411,32 @@ def cmd_thread(args) -> int:
     return 0
 
 
+def cmd_usage(args) -> int:
+    p = _project(args)
+    usage.refresh(p)
+    if args.thread:
+        tid = "" if args.thread.lower() == "none" else args.thread.upper()
+        if args.json:
+            print(json.dumps(usage.for_thread(p, tid)))
+        else:
+            print(usage.text(p, tid))
+        return 0
+    tot = usage.totals(p)
+    rows = {tid: usage.for_thread(p, tid) for tid in sorted(tot, key=lambda k: (k == "", k))}
+    if args.json:
+        print(json.dumps(rows))
+        return 0
+    grand = sum(tot.values())
+    print(f"Claude usage, all threads: {usage.tokens(grand)} tokens")
+    for tid, v in rows.items():
+        cost = f"  ${v['cost']:.2f}" if v["cost"] is not None else ""
+        print(f"  {tid or 'no thread':<10} {usage.tokens(v['total']):>8}  "
+              f"{100 * v['total'] / grand if grand else 0:5.1f}%{cost}  {usage.mix(v)}"
+              f"  ({len(v['sessions'])} session(s))")
+    print("Per thread: rms usage T<NN>")
+    return 0
+
+
 def cmd_env(args) -> int:
     p = _project(args)
     rec = _session(p)
@@ -630,6 +661,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("thread", nargs="?")
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_thread)
+
+    s = sub.add_parser("usage", help="Claude tokens per thread and model (from the transcripts)")
+    s.add_argument("thread", nargs="?", help="T<NN>, or 'none' for no thread")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_usage)
 
     s = sub.add_parser("scan", help="find builds/data on disk that the records miss")
     s.set_defaults(fn=cmd_scan)

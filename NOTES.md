@@ -120,6 +120,12 @@ Read: threads and status, locks, reference milestone, milestones, experiments + 
 
 - TUI Thread tab and `rms thread T<NN>`: sources and their state, builds, experiments (LLVM-regsw layout), disk use, processes running for the thread (session's Bash commands, anything working in its folders). Built and tested 2026-11-11.
 
+## 10f. Claude usage per thread (owner 2026-11-11)
+
+- Every Claude session's details are recorded per thread: models, tokens (input, cache write, cache read, output), messages, prompts, tool calls, subagents, title, times, Claude Code's own cost. Source: Claude Code's transcripts; RMS keeps its own copy (`store/rms/usage/<session>.json`) so the numbers outlive transcript clean-up.
+- A message counts for the thread the session held then; else the thread whose checkout it worked in; else "no thread". Unregistered sessions are found by folder.
+- Shown: TUI Thread tab (tokens by model with each model's share, thread total, sessions), Overview Tokens column, `rms usage [T<NN>]`, and the rms-thread band in Claude Code (`940k tok (opus 5.5 92%, haiku 5.5 8%)`). Built 2026-11-11.
+
 ## 11. Open questions
 
 - Can Claude Code hooks rewrite a command (for `tee` into consoles)? Later.

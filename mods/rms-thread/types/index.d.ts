@@ -8,6 +8,8 @@ export type RmsInfo = {
   side: string | null
   worktree: string | null
   handover_due: boolean
+  /** Claude tokens of the held thread (all sessions), and each model's share. */
+  usage?: { total: number; cost: number | null; models: { model: string; pct: number }[] }
 }
 
 declare module 'claude-code' {

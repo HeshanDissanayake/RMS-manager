@@ -64,6 +64,7 @@ In the TUI: arrows/tab to move, `enter` details, `t` open the selected thread in
 | `rms reopen T<NN>` · `rms archive T<NN>` · `rms restore T<NN>` | reopen a done thread; pack/unpack its data (sha256) |
 | `rms build add\|use\|unuse\|ignore …` | record what the thread built / uses (RMS fills in source commits) |
 | `rms thread [T<NN>] [--json]` | all of a thread: sources and their state, builds, experiments, disk use, processes running for it (the TUI's Thread tab) |
+| `rms usage [T<NN>\|none] [--json]` | Claude tokens per thread, per model with each model's share, and the sessions (from Claude Code's transcripts; also in the Thread tab and the band) |
 | `rms store [T<NN>]` · `rms builds` · `rms env [T<NN>]` | a thread's builds, uses and data; all builds; shell exports |
 | `rms scan` · `rms gc` | find unrecorded builds and data (with guesses; they become warnings); list clean-up candidates (removes nothing) |
 | `rms warnings [dismiss\|resolve <id>]` | mismatches for the owner to settle (owner only); also a TUI pane |
@@ -80,7 +81,7 @@ State is plain JSON under the project's `store/rms/` (`sessions/`, `claims/`, `e
 
 ## Claude Code mod: `mods/rms-thread`
 
-In an RMS project a session that holds no thread gets a picker at start ("Which thread will this session work on?"); the band right above the prompt then shows `RMS T01 fast sort · store/worktrees/T01/` (and "handover due"). `/thread` picks or shows it. Source in `mods/rms-thread/` (tests: `claude plugin test mods/rms-thread`). This repo is its marketplace (`.claude-plugin/marketplace.json`). **Per project:** `rms install-mod <project>` (project scope: only `claude` started there loads it; the sandbox reset does this). For every folder: `/plugin install rms-thread --marketplace HeshanDissanayake/RMS-manager` (a new machine: `docs/adopting.md`, "Moving to a new machine"). RMS's UserPromptSubmit hook tells Claude about a thread picked there.
+In an RMS project a session that holds no thread gets a picker at start ("Which thread will this session work on?"); the band right above the prompt then shows `RMS T01 fast sort · store/worktrees/T01/ · 940k tok (opus 5.5 92%, haiku 5.5 8%)` (and "handover due"). `/thread` picks or shows it. Source in `mods/rms-thread/` (tests: `claude plugin test mods/rms-thread`). This repo is its marketplace (`.claude-plugin/marketplace.json`). **Per project:** `rms install-mod <project>` (project scope: only `claude` started there loads it; the sandbox reset does this). For every folder: `/plugin install rms-thread --marketplace HeshanDissanayake/RMS-manager` (a new machine: `docs/adopting.md`, "Moving to a new machine"). RMS's UserPromptSubmit hook tells Claude about a thread picked there.
 
 ## Layout
 

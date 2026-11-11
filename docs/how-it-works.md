@@ -131,6 +131,25 @@ At a milestone, the thread's builds and the builds it uses are pinned (`mileston
 | disk | sources, builds made, builds used, data, records; total of the thread's own |
 | running now | processes started by the Bash tool of the session holding the thread (Claude's own helpers such as MCP servers are not counted), and any process whose working folder is in the thread's checkout, data or builds. Shown with the command as typed. |
 
+## Claude usage per thread (`rms usage`, the Thread tab, the band)
+
+```
+~/.claude/projects/<folder>/<session>.jsonl      Claude Code's transcripts (+ <session>/subagents/*.jsonl)
+          │  each assistant message: model + tokens
+          ▼
+rms usage / TUI (every 10 s) / session end / whoami --json
+          │  which thread: held then (claim/release events) → else checkout folder → else none
+          ▼
+store/rms/usage/<session>.json                   per session: tokens per thread per model, title,
+                                                 prompts, tools, subagents, times, cost
+```
+
+- **Tokens:** input, cache write, cache read, output (thinking is part of output); total = all four. A message streamed over several transcript lines counts once (by its id).
+- **Background calls** (titles, summaries; often a small model) are only in the transcript's cost record: the part not in the messages counts for the thread the session spent most on.
+- **Cost:** Claude Code's own cost per model for the session, split between threads by price weights (input 1, cache write 1.25 or 2 for 1-hour cache, cache read 0.1, output 5).
+- **Sessions RMS never saw** (no hooks): any transcript in a Claude folder under the project whose working folder is in the project; marked "unregistered", counted by folder.
+- Only changed transcripts are re-read (size and time stamp). `RMS_CLAUDE_PROJECTS` overrides where the transcripts are (tests); `CLAUDE_CONFIG_DIR` is honoured.
+
 ## Warnings (for the owner)
 
 RMS never stops work over a mismatch. It notes it as a **warning** in `store/rms/warnings.json`, at handover and close (that thread's finds) and at `rms scan` (everything).

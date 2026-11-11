@@ -3,8 +3,9 @@
 Run: ``rms tui`` (from inside the project, or with --project).
 Overview tab: refreshed every second. Thread tab (t on a thread, or pick it
 there): its sources and their state, builds, experiments, disk use and the
-processes running for it now (disk use is computed in the background; r
-recomputes).
+processes running for it now, and its Claude use: tokens per model with
+each model's share, and the sessions (disk use and tokens are computed in the
+background; r recomputes; token counts also refresh every 10 s).
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from textual.screen import ModalScreen
 from textual.widgets import (Button, DataTable, Footer, Header, Label, RichLog, Select, Static,
                              TabbedContent, TabPane)
 
-from rms import claims, inventory, sessions, store, threadinfo, threads, warns
+from rms import claims, inventory, sessions, store, threadinfo, threads, usage, warns
 
 H = inventory.human
 from rms.config import Project
@@ -82,12 +83,16 @@ THREAD_SECTIONS = [("sources", "Sources (repos in the thread's checkout)"),
                    ("builds", "Builds (made by the thread, and used)"),
                    ("experiments", "Experiments"),
                    ("disk", "Disk use"),
+                   ("claude", "Claude tokens by model"),
+                   ("claude-sessions", "Claude sessions on this thread"),
                    ("processes", "Running now (refreshed every second)")]
 THREAD_COLUMNS = {
     "sources": ("Repo", "Branch", "Commit", "State", "Size"),
     "builds": ("", "Build", "Path", "Source", "Cost", "Size"),
     "experiments": ("ID", "Status", "Title", "Summary", "Record", "Data"),
     "disk": ("What", "Size"),
+    "claude": ("Model", "Share", "Total", "Input", "Cache write", "Cache read", "Output", "Messages"),
+    "claude-sessions": ("Session", "Started", "Last", "Prompts", "Tokens", "Models", "Cost", "Title"),
     "processes": ("PID", "Running", "Why", "Folder", "Command"),
 }
 
@@ -177,7 +182,7 @@ class RMSApp(App):
     def on_mount(self) -> None:
         self.sub_title = f"{self.project.name} · {self.project.root}"
         self.query_one("#threads", DataTable).add_columns(
-            "ID", "Thread", "Status", "Claim", "Held by", "Since")
+            "ID", "Thread", "Status", "Claim", "Held by", "Since", "Tokens")
         self.query_one("#sessions", DataTable).add_columns(
             "Session", "State", "Thread", "Where", "Started", "Last seen")
         self.query_one("#warnings", DataTable).add_columns("ID", "Thread", "Since", "Warning")
@@ -185,6 +190,9 @@ class RMSApp(App):
         for key, cols in THREAD_COLUMNS.items():
             self.query_one(f"#t-{key}", DataTable).add_columns(*cols)
         self.thread_tid: str | None = None
+        self.token_totals: dict[str, int] = usage.totals(self.project)
+        self.update_usage()
+        self.set_interval(10.0, self.update_usage)
         self.query_one("#thread-pick", Select).set_options(
             [(f"{t.id}  {t.name}", t.id) for t in threads.discover(self.project).values()])
         self.refresh_all()
@@ -214,6 +222,7 @@ class RMSApp(App):
                      style=STATE_STYLE[st]),
                 c["short"] if c else "",
                 _time(c["since"]) if c else "",
+                usage.tokens(self.token_totals[t.id]) if self.token_totals.get(t.id) else "",
             )
             self.thread_ids.append(t.id)
         if self.thread_ids:
@@ -250,6 +259,8 @@ class RMSApp(App):
 
         stale = sum(claims.state(p, c)[0] == "stale" for c in cl.values())
         summary = f"{len(all_threads)} threads · {len(cl)} claimed · {live} live sessions"
+        if self.token_totals:
+            summary += f" · {usage.tokens(sum(self.token_totals.values()))} Claude tokens"
         if stale:
             summary += f" · {stale} stale claim{'s' if stale > 1 else ''} (select, x to release)"
         if self.warning_ids:
@@ -319,6 +330,18 @@ class RMSApp(App):
         self.fill_thread(quick)  # at once, sizes still "…"
         self.measure_thread(tid)
 
+    @work(thread=True, exclusive=True, group="usage")
+    def update_usage(self) -> None:
+        """Re-read changed Claude transcripts (in the background)."""
+        if usage.refresh(self.project) or not self.token_totals:
+            tot = usage.totals(self.project)
+            self.call_from_thread(self._usage_done, tot)
+
+    def _usage_done(self, tot: dict[str, int]) -> None:
+        self.token_totals = tot
+        if self.thread_tid and self.query_one(TabbedContent).active == "thread-tab":
+            self.fill_claude(usage.for_thread(self.project, self.thread_tid))
+
     @work(thread=True, exclusive=True, group="thread-sizes")
     def measure_thread(self, tid: str) -> None:
         data = threadinfo.collect(self.project, tid, sizes=True)
@@ -368,6 +391,32 @@ class RMSApp(App):
                 t.add_row(Text(k, style="bold" if k.startswith("total") else ""), H(v))
 
         self.fill_processes(d["processes"])
+        self.fill_claude(d["claude"])
+
+    def fill_claude(self, v: dict) -> None:
+        T = usage.tokens
+        t = self.query_one("#t-claude", DataTable)
+        t.clear()
+        for m, c in v["models"].items():
+            t.add_row(Text(usage.short_model(m), style="bold"), Text(f"{c['pct']:.1f}%", style="cyan"),
+                      T(c["total"]), T(c["input"]), T(c["cache_write"]), T(c["cache_read"]),
+                      T(c["output"]), str(c["messages"]))
+        if v["models"]:
+            k = v["kinds"]
+            cost = f"  (about ${v['cost']:.2f})" if v["cost"] is not None else ""
+            t.add_row(Text("total" + cost, style="bold"), "100%", Text(T(v["total"]), style="bold"),
+                      T(k["input"]), T(k["cache_write"]), T(k["cache_read"]), T(k["output"]), "")
+        else:
+            t.add_row(Text("no Claude messages recorded for this thread", style="dim"), *[""] * 7)
+        t = self.query_one("#t-claude-sessions", DataTable)
+        t.clear()
+        for s in v["sessions"]:
+            t.add_row(Text(s["session"], style="bold" if s["registered"] else "yellow"),
+                      usage.utc(s["first"]), usage.utc(s["last"])[11:], str(s["prompts"] or 0),
+                      T(s["total"]),
+                      ", ".join(f"{usage.short_model(m)} {T(n)}" for m, n in s["models"].items()),
+                      f"${s['cost']:.2f}" if s["cost"] is not None else "",
+                      (s["title"] or "") + ("" if s["registered"] else "  (unregistered)"))
 
     def fill_processes(self, procs: list[dict]) -> None:
         t = self.query_one("#t-processes", DataTable)

@@ -23,6 +23,7 @@ function engine(on: any, whoami: object | null) {
 const HOLDS = {
   project: 'demo', root: '/p', session: 'S-TEST', thread: 'T01',
   thread_name: 'fast sort', side: null, worktree: 'store/worktrees/T01/', handover_due: true,
+  usage: { total: 939812, cost: 0.47, models: [{ model: 'opus 5.5', pct: 91.8 }, { model: 'haiku 5.5', pct: 8.2 }] },
 }
 
 test('the band shows the held thread', async ($, on) => {
@@ -32,6 +33,7 @@ test('the band shows the held thread', async ($, on) => {
   expect((await ui.find({ type: 'Text', text: /RMS T01/ }))?.text).toBe('RMS T01')
   expect((await ui.find({ type: 'Text', text: /fast sort/ }))?.text).toBe(' fast sort')
   expect(await ui.find({ type: 'Text', text: /handover due/ })).toBeTruthy()
+  expect((await ui.find({ type: 'Text', text: /tok/ }))?.text).toBe('  ·  939.8k tok (opus 5.5 92%, haiku 5.5 8%)')
   await ui.unmount()
 })
 
