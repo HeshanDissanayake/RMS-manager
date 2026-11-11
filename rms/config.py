@@ -27,6 +27,8 @@ DEFAULTS: dict = {
     # --- thread lifecycle ---
     # The root repo's main branch (T00 and the INDEX live there).
     "main_branch": "main",
+    # The root thread: it IS main (no branch, no own checkout; never closed).
+    "main_thread": "T00",
     # Each thread's branch, in the root repo and in every source repo it uses.
     "thread_branch": "thread/{id}",
     # One checkout per thread: <worktrees_dir>/T<NN>/ (sources inside it too).
@@ -84,7 +86,13 @@ class Project:
     def main_branch(self) -> str:
         return self._get("main_branch")
 
+    @property
+    def main_thread(self) -> str:
+        return self._get("main_thread")
+
     def thread_branch(self, thread_id: str) -> str:
+        if thread_id == self.main_thread:
+            return self.main_branch
         return self._get("thread_branch").format(id=thread_id)
 
     @property

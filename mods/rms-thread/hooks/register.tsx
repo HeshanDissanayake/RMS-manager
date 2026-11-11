@@ -153,7 +153,7 @@ export const register: Register = on => {
       return {
         text:
           `This session holds ${v.thread} (${v.thread_name}).` +
-          (v.worktree ? ` Checkout: ${v.worktree}/.` : '') +
+          (v.worktree ? ` Checkout: ${v.worktree}.` : '') +
           ' To change it, hand it over first (rms handover).',
       }
     }
@@ -179,7 +179,7 @@ export const register: Register = on => {
             {`RMS ${v.thread}`}
           </Text>
           <Text>{` ${v.thread_name ?? ''}`}</Text>
-          {v.worktree ? <Text dimColor>{`  ·  ${v.worktree}/`}</Text> : null}
+          {v.worktree ? <Text dimColor>{`  ·  ${v.worktree}`}</Text> : null}
           {v.handover_due ? <Text color="yellow">{'  ·  handover due'}</Text> : null}
         </Box>
       )

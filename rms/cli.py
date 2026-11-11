@@ -83,7 +83,8 @@ def whoami_json(p: Project, rec: dict | None) -> dict:
         t = threads.discover(p).get(rec["thread"])
         c = claims.get(p, rec["thread"]) or {}
         out.update(thread_name=t.name if t else "",
-                   worktree=p.rel(c["worktree"]) if c.get("worktree") else None,
+                   worktree=(("root checkout (main)" if lifecycle.is_main(p, rec["thread"])
+                              else p.rel(c["worktree"]) + "/") if c.get("worktree") else None),
                    handover_due=bool(c.get("handover_due")))
     return out
 

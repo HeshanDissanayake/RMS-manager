@@ -159,6 +159,24 @@ class Lifecycle(SandboxCase):
         rc, out = self.rms(None, "archive", "T02")
         self.assertIn("only done threads", out)
 
+        # --- T00 is main: works in the root checkout, hands over without a merge
+        self.session("eeee-5")
+        rc, out = self.rms("eeee-5", "claim", "T00")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Work in ./", out)
+        rec = sessions.get(p, "eeee-5")
+        self.assertTrue(claims.may_write(p, rec, root / "threads/T00-main/roadmap.md"))
+        self.assertFalse(claims.may_write(p, rec, root / "src/fastlib/x.py"))
+        self.rms("eeee-5", "handover")
+        self.note("T00", "Roadmap updated.")
+        rc, out = self.rms("eeee-5", "handover", "-m", "roadmap")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("committed on main", out)
+        self.assertIn("T00 handover", git(root, "log", "-1", "--format=%s", "main"))
+        rc, out = self.rms("eeee-5", "claim", "T00")
+        rc, out = self.rms("eeee-5", "close", "--no-merge", "-m", "x")
+        self.assertIn("never closed", out)
+
         # nothing left half-done in the root
         self.assertEqual(git(root, "status", "--porcelain", "--untracked-files=no", "--ignore-submodules=all"), "")
 

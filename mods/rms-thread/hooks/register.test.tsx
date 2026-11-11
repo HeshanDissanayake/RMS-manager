@@ -22,7 +22,7 @@ function engine(on: any, whoami: object | null) {
 
 const HOLDS = {
   project: 'demo', root: '/p', session: 'S-TEST', thread: 'T01',
-  thread_name: 'fast sort', side: null, worktree: 'store/worktrees/T01', handover_due: true,
+  thread_name: 'fast sort', side: null, worktree: 'store/worktrees/T01/', handover_due: true,
 }
 
 test('the band shows the held thread', async ($, on) => {

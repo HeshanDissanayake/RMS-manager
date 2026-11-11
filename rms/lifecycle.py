@@ -95,8 +95,13 @@ def folder_name(project: Project, tid: str) -> str | None:
     return None
 
 
+def is_main(project: Project, tid: str) -> bool:
+    """The root thread (T00) is main itself: it works in the root checkout."""
+    return tid == project.main_thread
+
+
 def worktree(project: Project, tid: str) -> Path:
-    return project.worktrees_dir / tid
+    return project.root if is_main(project, tid) else project.worktrees_dir / tid
 
 
 def thread_dir(project: Project, tid: str) -> Path | None:
@@ -119,6 +124,8 @@ def thread_file(project: Project, tid: str) -> Path | None:
 def ensure_worktree(project: Project, tid: str) -> Path:
     """The thread's checkout, created from its branch if missing (sources too)."""
     wt = worktree(project, tid)
+    if is_main(project, tid):
+        return wt  # the root checkout on main; its sources are record-only (never touched)
     br = project.thread_branch(tid)
     if not (wt / ".git").exists():
         if not has_branch(project.root, br):
@@ -150,6 +157,8 @@ def _ensure_sources(project: Project, tid: str, wt: Path) -> None:
 
 def source_of(project: Project, tid: str, path: Path) -> str | None:
     """The submodule path (e.g. src/fastlib) a file in the thread's checkout is in."""
+    if is_main(project, tid):
+        return None
     wt = worktree(project, tid).resolve()
     path = Path(path).resolve()
     for p in submodule_paths(wt) if wt.is_dir() else []:
@@ -188,7 +197,8 @@ def areas(project: Project, tid: str) -> list[str]:
     d = thread_dir(project, tid)
     if d:
         out.append(str(d))
-    out += [str(wt / p) for p in submodule_paths(wt)] if wt.is_dir() else []
+    if not is_main(project, tid):  # T00 writes only its folder; the root's sources stay as they are
+        out += [str(wt / p) for p in submodule_paths(wt)] if wt.is_dir() else []
     return out
 
 
@@ -412,6 +422,8 @@ def check_note(project: Project, tid: str, before: str | None = None) -> list[st
     if not resume or not resume.group(1).strip():
         problems.append('"## How to resume" is missing or empty')
     br = project.thread_branch(tid)
+    if is_main(project, tid):
+        return problems  # root checkout: the owner's other edits are theirs; sources untouched
     for p in submodule_paths(wt):
         repo = wt / p
         if not (repo / ".git").exists():
@@ -458,7 +470,10 @@ def _commit_thread(project: Project, tid: str, subject: str,
     wt = worktree(project, tid)
     d = thread_dir(project, tid)
     paths = [str(d.relative_to(wt))] if d else []
-    paths += submodule_paths(wt)
+    if is_main(project, tid):
+        _root_ready(project)  # nothing of the owner's staged rides along
+    else:
+        paths += submodule_paths(wt)
     if paths:
         git(wt, "add", "-A", "--", *paths)
     return commit(wt, message(subject, trailers={"Thread": tid, **(trailers or {})}))
@@ -489,6 +504,14 @@ def handover(project: Project, rec: dict, summary: str | None = None) -> tuple[s
                            thread=tid, problems=len(problems))
         return "blocked", "Handover not done yet:\n" + "\n".join(f"- {p}" for p in problems)
     line = summary or _headline(project, tid) or "handover"
+    if is_main(project, tid):  # T00 is main: one commit there, nothing to merge
+        sha = _commit_thread(project, tid, f"{tid} handover {today()}: {line}") or head(project.root)
+        warn_text = _note_warnings(project, tid, by=rec["short"])
+        claims.release(project, tid, session_id=rec["id"], by=rec["short"], reason="handover")
+        store.append_event(project.state_dir, "handover", session=rec["short"], thread=tid,
+                           commit=sha[:9])
+        return "done", (f"{tid} handed over: committed on {project.main_branch} ({sha[:9]}); "
+                        f"thread released." + warn_text)
     _commit_thread(project, tid, f"{tid} handover {today()}: {line}")
     sha = merge_into_main(project, tid, f"Merge {project.thread_branch(tid)}: {tid} handover {today()}",
                           {"Thread": tid}, keep_pointers=True,
@@ -531,6 +554,8 @@ def close_approval(project: Project, tid: str) -> dict | None:
 def close(project: Project, rec: dict, how: str, summary: str, parent: str | None = None) -> str:
     """how: milestone | merge (into parent) | none. Returns what it was merged into."""
     tid, c = _holder_check(project, rec)
+    if is_main(project, tid):
+        raise LifecycleError(f"{tid} is the root thread (main); it is never closed")
     if not close_approval(project, tid):
         store.append_event(project.state_dir, "close-refused", session=rec["short"], thread=tid)
         raise LifecycleError(f"closing {tid} needs the owner's yes: ask the owner to run "
